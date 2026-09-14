@@ -54,7 +54,7 @@ export default function AuthModal() {
 
                     <form onSubmit={handleSubmit}>
                         <div className="form-group">
-                            <label className="form-label">Username or Email</label>
+                            <label className="form-label">Username or Email or Sasi </label>
                             <div style={{ position: 'relative' }}>
                                 <User className="w-4 h-4" style={{ position: 'absolute', left: '0.75rem', top: '0.65rem', color: 'var(--text-muted)' }} />
                                 <input

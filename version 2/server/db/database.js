@@ -1,6 +1,6 @@
-const initSqlJs = require('sql.js');
 const fs = require('fs');
 const path = require('path');
+const Database = require('better-sqlite3');
 
 const dbFilePath = path.join(__dirname, 'enterprise.db');
 let dbInstance = null;
@@ -8,72 +8,74 @@ let dbInstance = null;
 async function getDb() {
     if (dbInstance) return dbInstance;
 
-    const SQL = await initSqlJs();
+    // Initialize better-sqlite3
+    dbInstance = new Database(dbFilePath);
 
-    if (fs.existsSync(dbFilePath)) {
-        const fileBuffer = fs.readFileSync(dbFilePath);
-        dbInstance = new SQL.Database(fileBuffer);
-    } else {
-        dbInstance = new SQL.Database();
-    }
-
-    // Enable foreign keys
-    dbInstance.run('PRAGMA foreign_keys = ON;');
+    // ACID Principle: Durability & Isolation
+    // WAL (Write-Ahead Logging) mode significantly improves concurrency (Isolation) 
+    // by allowing simultaneous readers and a writer. It also ensures that transactions 
+    // are written safely to disk via atomic log appends before confirming (Durability).
+    dbInstance.pragma('journal_mode = WAL');
+    
+    // ACID Principle: Consistency
+    // Enforcing foreign key constraints ensures database schema consistency so that 
+    // invalid relational data cannot be inserted.
+    dbInstance.pragma('foreign_keys = ON');
 
     // Check if tables exist
-    const res = dbInstance.exec("SELECT name FROM sqlite_master WHERE type='table' AND name='users';");
-    if (res.length === 0 || res[0].values.length === 0) {
+    const stmt = dbInstance.prepare("SELECT name FROM sqlite_master WHERE type='table' AND name='users';");
+    const res = stmt.get();
+    if (!res) {
         console.log('Initializing SQLite Database schema & seed data...');
         const schemaSql = fs.readFileSync(path.join(__dirname, 'schema.sql'), 'utf-8');
-        dbInstance.run(schemaSql);
+        dbInstance.exec(schemaSql);
 
         const seedSql = fs.readFileSync(path.join(__dirname, 'seed.sql'), 'utf-8');
-        dbInstance.run(seedSql);
+        dbInstance.exec(seedSql);
 
-        saveDatabase();
         console.log('SQLite Database initialized and seeded successfully!');
     }
 
     return dbInstance;
 }
 
-function saveDatabase() {
-    if (dbInstance) {
-        const data = dbInstance.export();
-        const buffer = Buffer.from(data);
-        fs.writeFileSync(dbFilePath, buffer);
-    }
-}
+// Dummy function to prevent breaking older code that might import it.
+// With better-sqlite3, writes are directly flushed to disk by the OS, 
+// completely eliminating the flawed Durability of the old in-memory buffer dump.
+function saveDatabase() {}
 
 // Helper query function for SELECT (returns array of objects)
 function queryAll(db, sql, params = []) {
+    console.log("Executing Query:", sql);
     const stmt = db.prepare(sql);
-    if (params && params.length > 0) {
-        stmt.bind(params);
-    }
-    const results = [];
-    while (stmt.step()) {
-        results.push(stmt.getAsObject());
-    }
-    stmt.free();
-    return results;
+    return stmt.all(params);
 }
 
 // Helper query function for single row
 function queryOne(db, sql, params = []) {
-    const results = queryAll(db, sql, params);
-    return results.length > 0 ? results[0] : null;
+    console.log("Executing Query:", sql);
+    const stmt = db.prepare(sql);
+    return stmt.get(params);
 }
 
 // Helper run function for INSERT/UPDATE/DELETE
 function runQuery(db, sql, params = []) {
-    db.run(sql, params);
-    saveDatabase();
-    const changesObj = queryOne(db, 'SELECT changes() as changes, last_insert_rowid() as id');
+    console.log("Executing Mutation Query:", sql);
+    const stmt = db.prepare(sql);
+    const info = stmt.run(params);
     return {
-        changes: changesObj ? changesObj.changes : 0,
-        lastInsertRowid: changesObj ? changesObj.id : 0
+        changes: info.changes,
+        lastInsertRowid: info.lastInsertRowid
     };
+}
+
+// ACID Principle: Atomicity & Isolation
+// runTransaction allows multiple queries to be executed as a single all-or-nothing unit of work.
+// If any query fails, better-sqlite3 automatically rolls back all changes in the callback,
+// enforcing strict Atomicity. It also isolates these changes until the callback successfully completes.
+function runTransaction(db, callback) {
+    const transaction = db.transaction(callback);
+    return transaction();
 }
 
 module.exports = {
@@ -81,5 +83,6 @@ module.exports = {
     saveDatabase,
     queryAll,
     queryOne,
-    runQuery
+    runQuery,
+    runTransaction
 };

@@ -29,6 +29,23 @@ export default function TableViewer() {
     const [searchTerm, setSearchTerm] = useState('');
     const [loading, setLoading] = useState(false);
     
+    const [employeesLookup, setEmployeesLookup] = useState({});
+
+    useEffect(() => {
+        fetch('/api/tables/employees?limit=1000')
+            .then(res => res.json())
+            .then(resData => {
+                if (resData.data) {
+                    const lookup = {};
+                    resData.data.forEach(emp => {
+                        lookup[emp.employee_id] = `${emp.first_name} ${emp.last_name}`;
+                    });
+                    setEmployeesLookup(lookup);
+                }
+            })
+            .catch(err => console.error('Error fetching employees lookup:', err));
+    }, []);
+    
     // Modal states
     const [inspectRow, setInspectRow] = useState(null);
     const [isAddEditModalOpen, setIsAddEditModalOpen] = useState(false);
@@ -276,7 +293,18 @@ export default function TableViewer() {
                                     {columns.map((col) => (
                                         <td key={col.name}>
                                             {row[col.name] !== null && row[col.name] !== undefined ? (
-                                                (typeof row[col.name] === 'number' && (col.name.includes('salary') || col.name.includes('amount'))) ? (
+                                                col.name === 'status' ? (
+                                                    <span className={`badge ${
+                                                        ['Completed', 'Paid', 'Active'].includes(row[col.name]) ? 'badge-success' :
+                                                        ['In Progress', 'Pending', 'Medium'].includes(row[col.name]) ? 'badge-warning' :
+                                                        ['Unpaid', 'High', 'Inactive'].includes(row[col.name]) ? 'badge-danger' :
+                                                        'badge-info'
+                                                    }`}>
+                                                        {row[col.name]}
+                                                    </span>
+                                                ) : (col.name === 'manager_id' || col.name === 'assigned_to' || col.name === 'head_id' || col.name === 'approved_by' || col.name === 'reviewer_id') ? (
+                                                    <span>{employeesLookup[row[col.name]] || row[col.name]}</span>
+                                                ) : (typeof row[col.name] === 'number' && (col.name.includes('salary') || col.name.includes('amount'))) ? (
                                                     <span style={{ fontWeight: 700, color: 'var(--success-text)' }}>
                                                         ${Number(row[col.name]).toLocaleString()}
                                                     </span>
@@ -284,7 +312,7 @@ export default function TableViewer() {
                                                     <span>{String(row[col.name])}</span>
                                                 )
                                             ) : (
-                                                <span style={{ color: 'var(--text-light)', italic: true }}>NULL</span>
+                                                <span style={{ color: 'var(--text-light)', fontStyle: 'italic' }}>NULL</span>
                                             )}
                                         </td>
                                     ))}

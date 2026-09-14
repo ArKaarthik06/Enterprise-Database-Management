@@ -1,5 +1,5 @@
 import React from 'react';
-import { Database, BarChart3, Table, Network, LogIn, LogOut, ShieldCheck } from 'lucide-react';
+import { Database, BarChart3, Table, Network, LogIn, LogOut, ShieldCheck, UserRound } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 
 export default function Navbar({ activeTab, setActiveTab, onOpenERDiagram }) {
@@ -42,6 +42,16 @@ export default function Navbar({ activeTab, setActiveTab, onOpenERDiagram }) {
                         <BarChart3 className="w-4 h-4" />
                         <span>Analytics & Charts</span>
                     </button>
+
+                    {isAuthenticated && (
+                        <button
+                            onClick={() => setActiveTab('role-dashboard')}
+                            className={`nav-tab-btn ${activeTab === 'role-dashboard' ? 'active' : ''}`}
+                        >
+                            <UserRound className="w-4 h-4" />
+                            <span>Role Simulation</span>
+                        </button>
+                    )}
                 </nav>
 
                 {/* Right Actions */}

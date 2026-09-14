@@ -7,6 +7,7 @@ import QueryConsole from './components/QueryConsole';
 import AnalyticsCharts from './components/AnalyticsCharts';
 import AuthModal from './components/AuthModal';
 import ERDiagramModal from './components/ERDiagramModal';
+import RoleDashboard from './components/RoleDashboard';
 import { Database } from 'lucide-react';
 
 function AppContent() {
@@ -42,11 +43,13 @@ function AppContent() {
             <main className="main-content">
                 
                 {/* Hero Banner */}
+                {(activeTab === 'charts' || activeTab === 'tables')&& (
                 <HeroBanner 
                     onExploreClick={handleExploreClick}
                     onRunQueryClick={handleRunQueryClick}
                     onOpenERDiagram={() => setIsERDiagramOpen(true)}
                 />
+                )}
 
                 {/* Tab 1: Data Explorer & SQL Query Terminal */}
                 {activeTab === 'tables' && (
@@ -63,6 +66,13 @@ function AppContent() {
                 {activeTab === 'charts' && (
                     <div className="animate-fade-in">
                         <AnalyticsCharts />
+                    </div>
+                )}
+
+                {/* Tab 3: Role Dashboard */}
+                {activeTab === 'role-dashboard' && (
+                    <div className="animate-fade-in">
+                        <RoleDashboard />
                     </div>
                 )}
 

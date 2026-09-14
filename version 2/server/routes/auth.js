@@ -13,7 +13,7 @@ router.post('/login', async (req, res) => {
     try {
         const db = await getDb();
         const user = queryOne(db, `
-            SELECT u.user_id, u.username, u.email, u.role_id, r.role_name, e.first_name, e.last_name
+            SELECT u.user_id, u.username, u.email, u.role_id, r.role_name, e.first_name, e.last_name, e.employee_id
             FROM users u
             JOIN roles r ON u.role_id = r.role_id
             LEFT JOIN employees e ON u.user_id = e.user_id
@@ -31,7 +31,8 @@ router.post('/login', async (req, res) => {
                 username: user.username,
                 email: user.email,
                 role: user.role_name,
-                name: user.first_name ? `${user.first_name} ${user.last_name}` : user.username
+                name: user.first_name ? `${user.first_name} ${user.last_name}` : user.username,
+                employee_id: user.employee_id || null
             },
             token: `demo-jwt-token-${user.user_id}-${Date.now()}`
         });
@@ -49,6 +50,7 @@ router.get('/quick-users', async (req, res) => {
                    COALESCE(e.first_name || ' ' || e.last_name, u.username) as name
             FROM users u
             JOIN roles r ON u.role_id = r.role_id
+            LEFT JOIN employees e ON u.user_id = e.user_id
         `);
         res.json(users);
     } catch (err) {

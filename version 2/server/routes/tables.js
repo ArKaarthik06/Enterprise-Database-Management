@@ -1,6 +1,6 @@
 const express = require('express');
 const router = express.Router();
-const { getDb, queryAll, queryOne } = require('../db/database');
+const { getDb, queryAll, queryOne, runQuery, runTransaction } = require('../db/database');
 
 const VALID_TABLES = [
     'roles', 'users', 'departments', 'designations', 'employees',
@@ -147,7 +147,11 @@ router.post('/:tableName', async (req, res) => {
         const values = keys.map(k => rowData[k]);
         const sql = `INSERT INTO ${tableName} (${keys.join(', ')}) VALUES (${placeholders})`;
 
-        const result = runQuery(db, sql, values);
+        // ACID Principle: Atomicity & Isolation
+        // Wrapping this in a transaction ensures that the insert is atomic and isolated.
+        const result = runTransaction(db, () => {
+            return runQuery(db, sql, values);
+        });
         res.json({ message: 'Record inserted successfully', result });
     } catch (err) {
         res.status(400).json({ error: err.message });
@@ -185,7 +189,11 @@ router.put('/:tableName/:id', async (req, res) => {
         const values = [...setKeys.map(k => rowData[k]), id];
         const sql = `UPDATE ${tableName} SET ${setClause} WHERE ${pkCol} = ?`;
 
-        const result = runQuery(db, sql, values);
+        // ACID Principle: Atomicity & Isolation
+        // Wrapping this in a transaction ensures that the update is atomic and isolated.
+        const result = runTransaction(db, () => {
+            return runQuery(db, sql, values);
+        });
         res.json({ message: 'Record updated successfully', result });
     } catch (err) {
         res.status(400).json({ error: err.message });
@@ -209,7 +217,11 @@ router.delete('/:tableName/:id', async (req, res) => {
         }
 
         const sql = `DELETE FROM ${tableName} WHERE ${pkCol} = ?`;
-        const result = runQuery(db, sql, [id]);
+        // ACID Principle: Atomicity & Isolation
+        // Wrapping this in a transaction ensures that the delete operation is atomic and isolated.
+        const result = runTransaction(db, () => {
+            return runQuery(db, sql, [id]);
+        });
         res.json({ message: 'Record deleted successfully', result });
     } catch (err) {
         res.status(400).json({ error: err.message });

@@ -27,7 +27,7 @@ export default function HeroBanner({ onExploreClick, onRunQueryClick, onOpenERDi
 
     return (
         <div style={{
-            backgroundColor: 'var(--bg-card)',
+            backgroundColor: '#ffffff',
             border: '1px solid var(--border-color)',
             borderRadius: 'var(--radius-lg)',
             padding: '2rem',
@@ -36,18 +36,6 @@ export default function HeroBanner({ onExploreClick, onRunQueryClick, onOpenERDi
             position: 'relative',
             overflow: 'hidden'
         }}>
-            {/* Subtle decorative background gradient accent */}
-            <div style={{
-                position: 'absolute',
-                top: 0,
-                right: 0,
-                width: '350px',
-                height: '100%',
-                background: 'linear-gradient(135deg, rgba(79, 70, 229, 0.06) 0%, rgba(59, 130, 246, 0.02) 100%)',
-                pointerEvents: 'none',
-                borderTopRightRadius: 'var(--radius-lg)',
-                borderBottomRightRadius: 'var(--radius-lg)'
-            }} />
 
             <div style={{ position: 'relative', zIndex: 2, maxWidth: '100%' }}>
                 

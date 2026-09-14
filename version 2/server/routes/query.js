@@ -1,6 +1,6 @@
 const express = require('express');
 const router = express.Router();
-const { getDb, queryAll, queryOne, runQuery } = require('../db/database');
+const { getDb, queryAll, queryOne, runQuery, runTransaction } = require('../db/database');
 
 const PRESET_QUERIES = [
     {
@@ -170,7 +170,12 @@ router.post('/execute', async (req, res) => {
                 executionTimeMs
             });
         } else {
-            const result = runQuery(db, trimmedSql);
+            // ACID Principle: Atomicity & Isolation
+            // Wrap arbitrary mutation queries in a transaction. This guarantees that if a custom script
+            // contains multiple statements (if supported), they are atomic and isolated.
+            const result = runTransaction(db, () => {
+                return runQuery(db, trimmedSql);
+            });
             const diff = process.hrtime(startTime);
             const executionTimeMs = (diff[0] * 1000 + diff[1] / 1e6).toFixed(2);
 
