@@ -1,0 +1,7 @@
+{
+  "mcpServers": {
+    "enterprise-dbms": {
+      "serverUrl": "https://dbms-project-mcp.onrender.com/api/mcp"
+    }
+  }
+}
