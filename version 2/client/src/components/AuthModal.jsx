@@ -107,7 +107,7 @@ export default function AuthModal() {
                             <span>Quick Demo Accounts (1-Click Fill)</span>
                         </div>
                         <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0.5rem' }}>
-                            {quickUsers.slice(0, 4).map((u, i) => (
+                            {quickUsers.slice(0, 10).map((u, i) => (
                                 <button
                                     key={i}
                                     type="button"

@@ -111,4 +111,107 @@ router.post('/employee/request-leave', async (req, res) => {
     }
 });
 
+// --- CLIENT ENDPOINTS ---
+
+// Get client's own projects
+router.get('/client/projects', async (req, res) => {
+    const clientId = req.query.client_id;
+    if (!clientId) return res.status(400).json({ error: 'Client ID required' });
+
+    try {
+        const db = await getDb();
+        const sql = `
+            SELECT project_id, name, description, start_date, end_date, status, manager_id, team_id
+            FROM projects
+            WHERE client_id = ?
+            ORDER BY project_id DESC
+        `;
+        const projects = queryAll(db, sql, [clientId]);
+        res.json(projects);
+    } catch (err) {
+        res.status(500).json({ error: err.message });
+    }
+});
+
+// Submit a new project request
+router.post('/client/request-project', async (req, res) => {
+    const { client_id, name, description, start_date, end_date } = req.body;
+    if (!client_id || !name) {
+        return res.status(400).json({ error: 'Client ID and project name are required' });
+    }
+
+    try {
+        const db = await getDb();
+        runTransaction(db, () => {
+            const sql = `
+                INSERT INTO projects (client_id, name, description, start_date, end_date, status)
+                VALUES (?, ?, ?, ?, ?, 'Pending Assignment')
+            `;
+            runQuery(db, sql, [client_id, name, description, start_date, end_date]);
+        });
+        res.json({ message: 'Project request submitted successfully.' });
+    } catch (err) {
+        res.status(500).json({ error: err.message });
+    }
+});
+
+// --- MANAGER TEAM ASSIGNMENT ENDPOINTS ---
+
+// Get projects for assignment (no team assigned yet)
+router.get('/manager/unassigned-projects', async (req, res) => {
+    try {
+        const db = await getDb();
+        const sql = `
+            SELECT p.project_id, p.name, p.description, p.start_date, p.end_date, p.status, c.name as client_name
+            FROM projects p
+            LEFT JOIN clients c ON p.client_id = c.client_id
+            WHERE p.team_id IS NULL
+            ORDER BY p.project_id DESC
+        `;
+        const projects = queryAll(db, sql);
+        res.json(projects);
+    } catch (err) {
+        res.status(500).json({ error: err.message });
+    }
+});
+
+// Get all teams for dropdown
+router.get('/manager/teams', async (req, res) => {
+    try {
+        const db = await getDb();
+        const sql = `
+            SELECT team_id, name 
+            FROM teams
+            ORDER BY name
+        `;
+        const teams = queryAll(db, sql);
+        res.json(teams);
+    } catch (err) {
+        res.status(500).json({ error: err.message });
+    }
+});
+
+// Assign team to project
+router.post('/manager/assign-team', async (req, res) => {
+    const { project_id, team_id, manager_id } = req.body;
+    if (!project_id || !team_id || !manager_id) {
+        return res.status(400).json({ error: 'project_id, team_id, and manager_id are required' });
+    }
+
+    try {
+        const db = await getDb();
+        runTransaction(db, () => {
+            const sqlUpdate = `
+                UPDATE projects 
+                SET team_id = ?, manager_id = ?, status = 'In Progress' 
+                WHERE project_id = ?
+            `;
+            runQuery(db, sqlUpdate, [team_id, manager_id, project_id]);
+        });
+        res.json({ message: 'Team assigned to project successfully.' });
+    } catch (err) {
+        res.status(500).json({ error: err.message });
+    }
+});
+
 module.exports = router;

@@ -2,20 +2,40 @@ const fs = require('fs');
 const path = require('path');
 const Database = require('better-sqlite3');
 
-const dbFilePath = path.join(__dirname, 'enterprise.db');
 let dbInstance = null;
+
+function getDbFilePath() {
+    if (process.env.DB_FILE_PATH) {
+        return process.env.DB_FILE_PATH;
+    }
+
+    const bundledDbPath = path.join(__dirname, 'enterprise.db');
+
+    if (process.env.VERCEL || process.env.SQLITE_USE_TMP === '1') {
+        const tmpDbPath = path.join('/tmp', 'enterprise.db');
+        if (!fs.existsSync(tmpDbPath) && fs.existsSync(bundledDbPath)) {
+            fs.copyFileSync(bundledDbPath, tmpDbPath);
+        }
+        return tmpDbPath;
+    }
+
+    return bundledDbPath;
+}
 
 async function getDb() {
     if (dbInstance) return dbInstance;
 
     // Initialize better-sqlite3
+    const dbFilePath = getDbFilePath();
     dbInstance = new Database(dbFilePath);
 
     // ACID Principle: Durability & Isolation
     // WAL (Write-Ahead Logging) mode significantly improves concurrency (Isolation) 
     // by allowing simultaneous readers and a writer. It also ensures that transactions 
     // are written safely to disk via atomic log appends before confirming (Durability).
-    dbInstance.pragma('journal_mode = WAL');
+    if (process.env.SQLITE_READONLY !== '1') {
+        dbInstance.pragma('journal_mode = WAL');
+    }
     
     // ACID Principle: Consistency
     // Enforcing foreign key constraints ensures database schema consistency so that 

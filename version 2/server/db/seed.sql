@@ -6,7 +6,8 @@ INSERT INTO roles (role_id, role_name, description) VALUES
 (1, 'Admin', 'System Administrator with full access rights'),
 (2, 'HR Manager', 'Manages employee records, payroll, leave requests'),
 (3, 'Project Manager', 'Oversees projects, client invoices, and tasks'),
-(4, 'Employee', 'Standard employee access for self-service');
+(4, 'Employee', 'Standard employee access for self-service'),
+(5, 'Client', 'External client who can submit projects');
 
 -- 2. Users
 INSERT INTO users (user_id, username, email, password_hash, role_id, is_active) VALUES
@@ -17,7 +18,11 @@ INSERT INTO users (user_id, username, email, password_hash, role_id, is_active) 
 (5, 'emily_dev', 'emily.clarke@enterprise.com', 'devpass123', 4, 1),
 (6, 'david_fin', 'david.ross@enterprise.com', 'finpass123', 3, 1),
 (7, 'jessica_mkt', 'jessica.alba@enterprise.com', 'mktpass123', 4, 1),
-(8, 'robert_tech', 'robert.downey@enterprise.com', 'techpass123', 1, 1);
+(8, 'robert_tech', 'robert.downey@enterprise.com', 'techpass123', 1, 1),
+(9, 'apex_client', 'contact@apexfin.com', 'client123', 5, 1),
+(10, 'nexus_client', 'billing@nexushealth.org', 'client123', 5, 1),
+(11, 'vanguard_client', 'accounts@vanguardretail.com', 'client123', 5, 1),
+(12, 'global_client', 'info@gls-freight.com', 'client123', 5, 1);
 
 -- 3. Departments
 INSERT INTO departments (department_id, name, description, head_id) VALUES
@@ -56,14 +61,35 @@ UPDATE departments SET head_id = 3 WHERE department_id = 3;
 UPDATE departments SET head_id = 6 WHERE department_id = 4;
 UPDATE departments SET head_id = 8 WHERE department_id = 5;
 
--- 6. Projects
-INSERT INTO projects (project_id, name, description, start_date, end_date, status, manager_id) VALUES
-(1, 'Enterprise Cloud ERP', 'Migrating core business processes to cloud microservices', '2025-01-10', '2026-06-30', 'In Progress', 3),
-(2, 'AI Customer Support Hub', 'Automated ticketing and agent assistant engine', '2025-03-01', '2025-11-30', 'In Progress', 3),
-(3, 'Payroll & HR Suite v2', 'Redesign of automated monthly payroll & attendance tracking', '2024-09-15', '2025-02-28', 'Completed', 3),
-(4, 'Cybersecurity Audit & Zero Trust', 'Implementing RBAC, encryption and asset tracking', '2025-05-01', '2026-01-15', 'In Progress', 1);
+-- 5.1 Teams
+INSERT INTO teams (team_id, name, department_id, manager_id) VALUES
+(1, 'Cloud Infrastructure Team', 5, 8),
+(2, 'Frontend Development Team', 1, 1),
+(3, 'Backend Development Team', 1, 1);
 
--- 7. Tasks
+-- 5.2 Team Members
+INSERT INTO team_members (team_id, employee_id) VALUES
+(1, 8),
+(2, 5),
+(2, 7),
+(3, 4),
+(3, 1);
+
+-- 6. Clients
+INSERT INTO clients (client_id, user_id, name, company, email, phone, address) VALUES
+(1, 9, 'Apex Financial Corp', 'Apex Global Ltd', 'contact@apexfin.com', '+1 800-555-0199', '1 Enterprise Tower, NY'),
+(2, 10, 'Nexus Health Tech', 'Nexus Health Inc', 'billing@nexushealth.org', '+1 800-555-0288', '500 Biotech Blvd, Boston'),
+(3, 11, 'Vanguard Retail Systems', 'Vanguard Group', 'accounts@vanguardretail.com', '+1 800-555-0377', '12 Commerce Ave, Chicago'),
+(4, 12, 'Global Logistics Solutions', 'Global Freight Logistics', 'info@gls-freight.com', '+1 800-555-0466', '88 Freight Way, Seattle');
+
+-- 7. Projects
+INSERT INTO projects (project_id, name, description, start_date, end_date, status, manager_id, client_id, team_id) VALUES
+(1, 'Enterprise Cloud ERP', 'Migrating core business processes to cloud microservices', '2025-01-10', '2026-06-30', 'In Progress', 3, 1, 3),
+(2, 'AI Customer Support Hub', 'Automated ticketing and agent assistant engine', '2025-03-01', '2025-11-30', 'In Progress', 3, 2, 2),
+(3, 'Payroll & HR Suite v2', 'Redesign of automated monthly payroll & attendance tracking', '2024-09-15', '2025-02-28', 'Completed', 3, 3, 3),
+(4, 'Cybersecurity Audit & Zero Trust', 'Implementing RBAC, encryption and asset tracking', '2025-05-01', '2026-01-15', 'In Progress', 1, 4, 1);
+
+-- 8. Tasks
 INSERT INTO tasks (task_id, project_id, title, description, assigned_to, priority, status, due_date) VALUES
 (1, 1, 'Database Schema Migration to PostgreSQL', 'Draft schema DDL and execute dry runs', 4, 'High', 'In Progress', '2025-09-15'),
 (2, 1, 'API Gateway Authentication Middleware', 'Implement JWT verification and rate limiting', 5, 'High', 'Completed', '2025-08-30'),
@@ -71,13 +97,6 @@ INSERT INTO tasks (task_id, project_id, title, description, assigned_to, priorit
 (4, 2, 'React Dashboard UI Components', 'Build real-time websocket metrics feed', 5, 'Low', 'Pending', '2025-10-15'),
 (5, 3, 'Tax Calculation Engine', 'Implement localized deduction rules for 2025', 6, 'Critical', 'Completed', '2025-01-20'),
 (6, 4, 'Hardware Asset Tagging & Encryption', 'Enforce BitLocker on all developer workstations', 8, 'High', 'In Progress', '2025-09-30');
-
--- 8. Clients
-INSERT INTO clients (client_id, name, company, email, phone, address) VALUES
-(1, 'Apex Financial Corp', 'Apex Global Ltd', 'contact@apexfin.com', '+1 800-555-0199', '1 Enterprise Tower, NY'),
-(2, 'Nexus Health Tech', 'Nexus Health Inc', 'billing@nexushealth.org', '+1 800-555-0288', '500 Biotech Blvd, Boston'),
-(3, 'Vanguard Retail Systems', 'Vanguard Group', 'accounts@vanguardretail.com', '+1 800-555-0377', '12 Commerce Ave, Chicago'),
-(4, 'Global Logistics Solutions', 'Global Freight Logistics', 'info@gls-freight.com', '+1 800-555-0466', '88 Freight Way, Seattle');
 
 -- 9. Invoices
 INSERT INTO invoices (invoice_id, client_id, project_id, amount, issue_date, due_date, status) VALUES

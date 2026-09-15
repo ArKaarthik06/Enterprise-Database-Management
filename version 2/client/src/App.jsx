@@ -8,11 +8,18 @@ import AnalyticsCharts from './components/AnalyticsCharts';
 import AuthModal from './components/AuthModal';
 import ERDiagramModal from './components/ERDiagramModal';
 import RoleDashboard from './components/RoleDashboard';
+import ClientApp from './components/ClientApp';
 import { Database } from 'lucide-react';
+import { useAuth } from './context/AuthContext';
 
 function AppContent() {
+    const { user } = useAuth();
     const [activeTab, setActiveTab] = useState('tables'); // 'tables' | 'charts'
     const [isERDiagramOpen, setIsERDiagramOpen] = useState(false);
+
+    if (user?.role === 'Client') {
+        return <ClientApp />;
+    }
 
     const handleExploreClick = () => {
         setActiveTab('tables');

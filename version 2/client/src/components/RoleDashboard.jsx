@@ -8,6 +8,8 @@ export default function RoleDashboard() {
     const [subordinates, setSubordinates] = useState([]);
     const [pendingLeaves, setPendingLeaves] = useState([]);
     const [myLeaves, setMyLeaves] = useState([]);
+    const [unassignedProjects, setUnassignedProjects] = useState([]);
+    const [teamsList, setTeamsList] = useState([]);
     const [loading, setLoading] = useState(true);
 
     const [leaveForm, setLeaveForm] = useState({
@@ -17,11 +19,15 @@ export default function RoleDashboard() {
         reason: ''
     });
 
+
+    
+    const [selectedTeams, setSelectedTeams] = useState({}); // map of project_id -> team_id
+
     const isManager = user?.role?.includes('Manager') || user?.role === 'Admin';
     const employeeId = user?.employee_id;
 
     useEffect(() => {
-        if (!employeeId) {
+        if (!user) {
             setLoading(false);
             return;
         }
@@ -30,13 +36,21 @@ export default function RoleDashboard() {
             setLoading(true);
             try {
                 if (isManager) {
-                    const subRes = await fetch(`/api/dashboard/manager/subordinates?employee_id=${employeeId}`);
-                    const levRes = await fetch(`/api/dashboard/manager/leaves?employee_id=${employeeId}`);
-                    setSubordinates(await subRes.json());
-                    setPendingLeaves(await levRes.json());
+                    if (employeeId) {
+                        const subRes = await fetch(`/api/dashboard/manager/subordinates?employee_id=${employeeId}`);
+                        const levRes = await fetch(`/api/dashboard/manager/leaves?employee_id=${employeeId}`);
+                        setSubordinates(await subRes.json());
+                        setPendingLeaves(await levRes.json());
+                    }
+                    const projRes = await fetch('/api/dashboard/manager/unassigned-projects');
+                    const teamsRes = await fetch('/api/dashboard/manager/teams');
+                    setUnassignedProjects(await projRes.json());
+                    setTeamsList(await teamsRes.json());
                 } else {
-                    const levRes = await fetch(`/api/dashboard/employee/leaves?employee_id=${employeeId}`);
-                    setMyLeaves(await levRes.json());
+                    if (employeeId) {
+                        const levRes = await fetch(`/api/dashboard/employee/leaves?employee_id=${employeeId}`);
+                        setMyLeaves(await levRes.json());
+                    }
                 }
             } catch (err) {
                 console.error("Error fetching dashboard data:", err);
@@ -46,7 +60,7 @@ export default function RoleDashboard() {
         };
 
         fetchDashboardData();
-    }, [employeeId, isManager]);
+    }, [user, employeeId, isManager]);
 
     const submitLeaveRequest = async (e) => {
         e.preventDefault();
@@ -87,6 +101,29 @@ export default function RoleDashboard() {
         }
     };
 
+
+
+    const assignTeam = async (projectId) => {
+        const teamId = selectedTeams[projectId];
+        if (!teamId) {
+            alert("Please select a team first.");
+            return;
+        }
+        try {
+            const res = await fetch('/api/dashboard/manager/assign-team', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ project_id: projectId, team_id: teamId, manager_id: employeeId })
+            });
+            if (res.ok) {
+                alert("Team assigned successfully.");
+                setUnassignedProjects(unassignedProjects.filter(p => p.project_id !== projectId));
+            }
+        } catch (err) {
+            console.error(err);
+        }
+    };
+
     if (!user) {
         return (
             <div style={{ padding: '4rem', textAlign: 'center' }}>
@@ -97,12 +134,12 @@ export default function RoleDashboard() {
         );
     }
 
-    if (!employeeId) {
+    if (!employeeId && user.role !== 'Admin') {
         return (
             <div style={{ padding: '4rem', textAlign: 'center' }}>
                 <ShieldAlert className="w-12 h-12 text-amber-500 mx-auto mb-4" />
                 <h2 style={{ fontSize: '1.5rem', fontWeight: 600 }}>System Account</h2>
-                <p style={{ color: 'var(--text-muted)' }}>This user ({user.username}) is not linked to an employee profile in the database.</p>
+                <p style={{ color: 'var(--text-muted)' }}>This user ({user.username}) is not linked to a proper profile in the database.</p>
             </div>
         );
     }

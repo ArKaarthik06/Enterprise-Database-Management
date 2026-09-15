@@ -1,0 +1,15 @@
+services:
+  - type: web
+    name: enterprise-dbms-mcp
+    runtime: node
+    rootDir: server
+    plan: free
+    buildCommand: npm install
+    startCommand: npm start
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: SQLITE_USE_TMP
+        value: "1"
+      - key: MCP_ENABLE_WRITE_TOOLS
+        value: "0"

@@ -61,7 +61,38 @@ CREATE TABLE IF NOT EXISTS employees (
     FOREIGN KEY (manager_id) REFERENCES employees(employee_id) ON DELETE SET NULL
 );
 
--- 6. Projects Table
+-- 5.1 Teams Table
+CREATE TABLE IF NOT EXISTS teams (
+    team_id INTEGER PRIMARY KEY AUTOINCREMENT,
+    name VARCHAR(100) NOT NULL,
+    department_id INTEGER NOT NULL,
+    manager_id INTEGER,
+    FOREIGN KEY (department_id) REFERENCES departments(department_id) ON DELETE RESTRICT,
+    FOREIGN KEY (manager_id) REFERENCES employees(employee_id) ON DELETE SET NULL
+);
+
+-- 5.2 Team Members Table
+CREATE TABLE IF NOT EXISTS team_members (
+    team_id INTEGER NOT NULL,
+    employee_id INTEGER NOT NULL,
+    PRIMARY KEY (team_id, employee_id),
+    FOREIGN KEY (team_id) REFERENCES teams(team_id) ON DELETE CASCADE,
+    FOREIGN KEY (employee_id) REFERENCES employees(employee_id) ON DELETE CASCADE
+);
+
+-- 6. Clients Table
+CREATE TABLE IF NOT EXISTS clients (
+    client_id INTEGER PRIMARY KEY AUTOINCREMENT,
+    user_id INTEGER UNIQUE,
+    name VARCHAR(100) NOT NULL,
+    company VARCHAR(100) NOT NULL,
+    email VARCHAR(100),
+    phone VARCHAR(15),
+    address VARCHAR(255),
+    FOREIGN KEY (user_id) REFERENCES users(user_id) ON DELETE CASCADE
+);
+
+-- 7. Projects Table
 CREATE TABLE IF NOT EXISTS projects (
     project_id INTEGER PRIMARY KEY AUTOINCREMENT,
     name VARCHAR(100) NOT NULL,
@@ -70,10 +101,14 @@ CREATE TABLE IF NOT EXISTS projects (
     end_date DATE,
     status VARCHAR(20) DEFAULT 'In Progress',
     manager_id INTEGER,
-    FOREIGN KEY (manager_id) REFERENCES employees(employee_id) ON DELETE SET NULL
+    client_id INTEGER,
+    team_id INTEGER,
+    FOREIGN KEY (manager_id) REFERENCES employees(employee_id) ON DELETE SET NULL,
+    FOREIGN KEY (client_id) REFERENCES clients(client_id) ON DELETE CASCADE,
+    FOREIGN KEY (team_id) REFERENCES teams(team_id) ON DELETE SET NULL
 );
 
--- 7. Tasks Table
+-- 8. Tasks Table
 CREATE TABLE IF NOT EXISTS tasks (
     task_id INTEGER PRIMARY KEY AUTOINCREMENT,
     project_id INTEGER NOT NULL,
@@ -85,16 +120,6 @@ CREATE TABLE IF NOT EXISTS tasks (
     due_date DATE,
     FOREIGN KEY (project_id) REFERENCES projects(project_id) ON DELETE CASCADE,
     FOREIGN KEY (assigned_to) REFERENCES employees(employee_id) ON DELETE SET NULL
-);
-
--- 8. Clients Table
-CREATE TABLE IF NOT EXISTS clients (
-    client_id INTEGER PRIMARY KEY AUTOINCREMENT,
-    name VARCHAR(100) NOT NULL,
-    company VARCHAR(100) NOT NULL,
-    email VARCHAR(100),
-    phone VARCHAR(15),
-    address VARCHAR(255)
 );
 
 -- 9. Invoices Table
