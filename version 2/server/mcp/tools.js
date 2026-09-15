@@ -85,6 +85,13 @@ function listTablesTool() {
     return {
         name: 'list_tables',
         description: 'List all database tables, row counts, columns, and foreign-key relationships.',
+        annotations: {
+            title: 'List database tables',
+            readOnlyHint: true,
+            destructiveHint: false,
+            idempotentHint: true,
+            openWorldHint: false
+        },
         inputSchema: {
             type: 'object',
             properties: {},
@@ -97,6 +104,13 @@ function describeTableTool() {
     return {
         name: 'describe_table',
         description: 'Describe one database table with columns, primary keys, foreign keys, and indexes.',
+        annotations: {
+            title: 'Describe database table',
+            readOnlyHint: true,
+            destructiveHint: false,
+            idempotentHint: true,
+            openWorldHint: false
+        },
         inputSchema: {
             type: 'object',
             properties: {
@@ -115,6 +129,13 @@ function runReadQueryTool() {
     return {
         name: 'run_read_query',
         description: 'Execute a safe read-only SQLite query and return rows. Only SELECT, WITH, EXPLAIN, and schema PRAGMA queries are allowed.',
+        annotations: {
+            title: 'Run read-only SQL query',
+            readOnlyHint: true,
+            destructiveHint: false,
+            idempotentHint: true,
+            openWorldHint: false
+        },
         inputSchema: {
             type: 'object',
             properties: {
@@ -137,6 +158,13 @@ function getCustomerByIdTool() {
     return {
         name: 'get_customer_by_id',
         description: 'Fetch a customer/client record by ID. In this schema, customers are stored in the clients table.',
+        annotations: {
+            title: 'Get customer by ID',
+            readOnlyHint: true,
+            destructiveHint: false,
+            idempotentHint: true,
+            openWorldHint: false
+        },
         inputSchema: {
             type: 'object',
             properties: {
@@ -155,6 +183,13 @@ function createOrderTool() {
     return {
         name: 'create_order',
         description: 'Create a client order as an invoice linked to an existing client and project.',
+        annotations: {
+            title: 'Create order',
+            readOnlyHint: false,
+            destructiveHint: false,
+            idempotentHint: false,
+            openWorldHint: false
+        },
         inputSchema: {
             type: 'object',
             properties: {
@@ -198,6 +233,13 @@ function updateInventoryTool() {
     return {
         name: 'update_inventory',
         description: 'Update inventory/assets status. This schema uses assets as inventory-like records.',
+        annotations: {
+            title: 'Update inventory',
+            readOnlyHint: false,
+            destructiveHint: true,
+            idempotentHint: false,
+            openWorldHint: false
+        },
         inputSchema: {
             type: 'object',
             properties: {
@@ -215,14 +257,18 @@ function updateInventoryTool() {
 }
 
 function getToolDefinitions() {
-    return [
+    const tools = [
         listTablesTool(),
         describeTableTool(),
         runReadQueryTool(),
-        getCustomerByIdTool(),
-        createOrderTool(),
-        updateInventoryTool()
+        getCustomerByIdTool()
     ];
+
+    if (WRITE_TOOLS_ENABLED) {
+        tools.push(createOrderTool(), updateInventoryTool());
+    }
+
+    return tools;
 }
 
 async function callTool(name, args = {}) {
