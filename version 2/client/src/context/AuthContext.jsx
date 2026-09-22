@@ -14,17 +14,6 @@ export function AuthProvider({ children }) {
         if (savedToken && savedUser) {
             setToken(savedToken);
             setUser(JSON.parse(savedUser));
-        } else {
-            // Default demo login state for quick presentation review
-            const defaultUser = {
-                id: 1,
-                username: 'admin',
-                email: 'admin@enterprise.com',
-                role: 'Admin',
-                name: 'Robert Downey (Admin)'
-            };
-            setUser(defaultUser);
-            setToken('demo-token-123');
         }
 
         // Fetch quick login presets

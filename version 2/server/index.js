@@ -8,6 +8,11 @@ const tableRoutes = require('./routes/tables');
 const queryRoutes = require('./routes/query');
 const dashboardRoutes = require('./routes/dashboard');
 const mcpRoutes = require('./routes/mcp');
+const employeeRoutes = require('./routes/employees');
+const projectRoutes = require('./routes/projects');
+const hrRoutes = require('./routes/hr');
+const crmRoutes = require('./routes/crm');
+const notificationRoutes = require('./routes/notifications');
 
 const app = express();
 const PORT = process.env.PORT || 5000;
@@ -22,6 +27,11 @@ app.use('/api/tables', tableRoutes);
 app.use('/api/query', queryRoutes);
 app.use('/api/dashboard', dashboardRoutes);
 app.use('/api/mcp', mcpRoutes);
+app.use('/api/employees', employeeRoutes);
+app.use('/api/projects', projectRoutes);
+app.use('/api/hr', hrRoutes);
+app.use('/api/crm', crmRoutes);
+app.use('/api/notifications', notificationRoutes);
 
 // Health check endpoint
 app.get('/api/health', (req, res) => {

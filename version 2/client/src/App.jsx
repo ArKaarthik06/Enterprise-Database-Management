@@ -7,8 +7,12 @@ import QueryConsole from './components/QueryConsole';
 import AnalyticsCharts from './components/AnalyticsCharts';
 import AuthModal from './components/AuthModal';
 import ERDiagramModal from './components/ERDiagramModal';
-import RoleDashboard from './components/RoleDashboard';
 import ClientApp from './components/ClientApp';
+import AdminLogin from './components/AdminLogin';
+import EmployeeLogin from './components/EmployeeLogin';
+import ManagerDashboard from './components/ManagerDashboard';
+import EmployeeDashboard from './components/EmployeeDashboard';
+import CRMDashboard from './components/CRMDashboard';
 import { Database } from 'lucide-react';
 import { useAuth } from './context/AuthContext';
 
@@ -19,6 +23,23 @@ function AppContent() {
 
     if (user?.role === 'Client') {
         return <ClientApp />;
+    }
+
+    if (window.location.pathname === '/admin' && user?.role !== 'SuperAdmin' && user?.role !== 'Admin') {
+        return <AdminLogin onLoginSuccess={() => window.location.reload()} />;
+    }
+
+    if (!user && window.location.pathname !== '/admin') {
+        return <EmployeeLogin />;
+    }
+
+    const isAdmin = user?.role === 'SuperAdmin' || user?.role === 'Admin';
+    const isEmployee = user?.role === 'Employee';
+    
+    // Default routing
+    let currentTab = activeTab;
+    if (!isAdmin && activeTab === 'tables') {
+        currentTab = isEmployee ? 'employee-dashboard' : 'manager-dashboard';
     }
 
     const handleExploreClick = () => {
@@ -41,7 +62,7 @@ function AppContent() {
             
             {/* Top Navigation */}
             <Navbar 
-                activeTab={activeTab} 
+                activeTab={currentTab} 
                 setActiveTab={setActiveTab} 
                 onOpenERDiagram={() => setIsERDiagramOpen(true)} 
             />
@@ -49,8 +70,8 @@ function AppContent() {
             {/* Main Content Area */}
             <main className="main-content">
                 
-                {/* Hero Banner */}
-                {(activeTab === 'charts' || activeTab === 'tables')&& (
+                {/* Hero Banner (Only for Admins on tables or charts tab) */}
+                {isAdmin && (currentTab === 'charts' || currentTab === 'tables') && (
                 <HeroBanner 
                     onExploreClick={handleExploreClick}
                     onRunQueryClick={handleRunQueryClick}
@@ -58,28 +79,39 @@ function AppContent() {
                 />
                 )}
 
-                {/* Tab 1: Data Explorer & SQL Query Terminal */}
-                {activeTab === 'tables' && (
+                {/* Tab 1: Data Explorer & SQL Query Terminal (Only for Admins) */}
+                {currentTab === 'tables' && isAdmin && (
                     <div style={{ display: 'flex', flexDirection: 'column', gap: '2rem' }} className="animate-fade-in">
-                        {/* 15 ER Relational Tables Explorer with CRUD */}
                         <TableViewer />
-
-                        {/* Analytical SQL Query Console */}
                         <QueryConsole />
                     </div>
                 )}
 
-                {/* Tab 2: Analytics & Recharts */}
-                {activeTab === 'charts' && (
+                {/* Manager Dashboard */}
+                {currentTab === 'manager-dashboard' && (
                     <div className="animate-fade-in">
-                        <AnalyticsCharts />
+                        <ManagerDashboard />
                     </div>
                 )}
 
-                {/* Tab 3: Role Dashboard */}
-                {activeTab === 'role-dashboard' && (
+                {/* Employee Dashboard */}
+                {currentTab === 'employee-dashboard' && (
                     <div className="animate-fade-in">
-                        <RoleDashboard />
+                        <EmployeeDashboard />
+                    </div>
+                )}
+
+                {/* CRM Dashboard */}
+                {currentTab === 'crm' && (
+                    <div className="animate-fade-in">
+                        <CRMDashboard />
+                    </div>
+                )}
+
+                {/* Tab 2: Analytics & Recharts (Only for Admins) */}
+                {currentTab === 'charts' && isAdmin && (
+                    <div className="animate-fade-in">
+                        <AnalyticsCharts />
                     </div>
                 )}
 
@@ -94,11 +126,13 @@ function AppContent() {
 
             {/* Clean Footer */}
             <footer style={{
-                backgroundColor: 'var(--bg-card)',
+                backgroundColor: 'var(--bg-subtle)',
                 borderTop: '1px solid var(--border-color)',
                 padding: '1.5rem 1rem',
                 marginTop: 'auto',
-                fontSize: '0.8rem',
+                fontFamily: 'var(--font-mono)',
+                fontSize: '0.75rem',
+                textTransform: 'uppercase',
                 color: 'var(--text-muted)'
             }}>
                 <div style={{
@@ -111,11 +145,11 @@ function AppContent() {
                     gap: '1rem'
                 }}>
                     <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-                        <Database className="w-4 h-4 text-indigo-600" />
-                        <span style={{ fontWeight: 700, color: 'var(--secondary)' }}>Enterprise DBMS Platform</span>
-                        <span>• Relational SQLite Engine</span>
+                        <Database className="w-4 h-4" style={{ color: 'var(--primary)' }} />
+                        <span style={{ fontWeight: 800, color: 'var(--primary)' }}>ENTERPRISE DBMS PLATFORM</span>
+                        <span>• RELATIONAL SQLITE ENGINE</span>
                     </div>
-                    <p>© 2026 Enterprise Database Management System</p>
+                    <p>© 2026 ENTERPRISE DATABASE MANAGEMENT</p>
                 </div>
             </footer>
 

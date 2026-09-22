@@ -31,13 +31,13 @@ export default function AuthModal() {
 
     return (
         <div className="modal-overlay" onClick={() => setIsAuthModalOpen(false)}>
-            <div className="modal-card" style={{ maxWidth: '440px' }} onClick={e => e.stopPropagation()}>
+            <div className="modal-card" style={{ maxWidth: '440px', border: '1px solid var(--primary)', boxShadow: 'var(--shadow-glow)' }} onClick={e => e.stopPropagation()}>
                 
                 {/* Header */}
                 <div className="modal-header">
                     <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-                        <Lock className="w-5 h-5 text-indigo-600" />
-                        <h2 className="modal-title">Enterprise Sign In</h2>
+                        <Lock className="w-5 h-5" style={{ color: 'var(--primary)' }} />
+                        <h2 className="modal-title" style={{ fontFamily: 'var(--font-mono)' }}>Enterprise Sign In</h2>
                     </div>
                     <button onClick={() => setIsAuthModalOpen(false)} className="btn btn-ghost btn-sm">
                         <X className="w-5 h-5" />
@@ -113,9 +113,9 @@ export default function AuthModal() {
                                     type="button"
                                     onClick={() => handleQuickSelect(u)}
                                     className="btn btn-outline btn-sm"
-                                    style={{ flexDirection: 'column', alignItems: 'flex-start', padding: '0.5rem', textTransform: 'none' }}
+                                    style={{ flexDirection: 'column', alignItems: 'flex-start', padding: '0.75rem', textTransform: 'uppercase', fontFamily: 'var(--font-mono)' }}
                                 >
-                                    <span style={{ fontWeight: 700, fontSize: '0.8rem', color: 'var(--text-main)' }}>{u.name}</span>
+                                    <span style={{ fontWeight: 800, fontSize: '0.85rem', color: 'var(--text-main)' }}>{u.name}</span>
                                     <span style={{ fontSize: '0.7rem', color: 'var(--text-muted)' }}>{u.role_name} ({u.username})</span>
                                 </button>
                             ))}

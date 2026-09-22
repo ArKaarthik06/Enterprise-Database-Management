@@ -46,6 +46,30 @@ router.post('/login', async (req, res) => {
     }
 });
 
+// Admin Login Endpoint (Master Password)
+router.post('/admin-login', (req, res) => {
+    const { password } = req.body;
+    
+    // In a real app, this should be in process.env
+    const masterPassword = process.env.MASTER_PASSWORD || 'admin';
+    
+    if (password === masterPassword) {
+        return res.json({
+            message: 'Admin Authentication successful',
+            user: {
+                id: 9999,
+                username: 'superadmin',
+                email: 'admin@system',
+                role: 'SuperAdmin',
+                name: 'System Administrator'
+            },
+            token: `admin-token-${Date.now()}`
+        });
+    }
+    
+    return res.status(401).json({ error: 'Invalid Master Password' });
+});
+
 // Quick Demo Users List
 router.get('/quick-users', async (req, res) => {
     try {

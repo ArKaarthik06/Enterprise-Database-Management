@@ -27,12 +27,11 @@ export default function HeroBanner({ onExploreClick, onRunQueryClick, onOpenERDi
 
     return (
         <div style={{
-            backgroundColor: '#ffffff',
-            border: '1px solid var(--border-color)',
-            borderRadius: 'var(--radius-lg)',
+            backgroundColor: 'var(--bg-card)',
+            border: '1px solid var(--primary)',
             padding: '2rem',
             marginBottom: '2rem',
-            boxShadow: 'var(--shadow-sm)',
+            boxShadow: 'var(--shadow-glow)',
             position: 'relative',
             overflow: 'hidden'
         }}>
@@ -52,65 +51,69 @@ export default function HeroBanner({ onExploreClick, onRunQueryClick, onOpenERDi
 
                 {/* Hero Title */}
                 <h1 style={{
-                    fontSize: '2rem',
+                    fontFamily: 'var(--font-mono)',
+                    fontSize: '2.5rem',
                     fontWeight: 800,
-                    color: 'var(--secondary)',
+                    textTransform: 'uppercase',
+                    color: 'var(--primary)',
                     letterSpacing: '-0.02em',
-                    marginBottom: '0.5rem',
-                    lineHeight: 1.2
+                    marginBottom: '1rem',
+                    lineHeight: 1.1
                 }}>
-                    Enterprise Resource & Analytical SQL Workbench
+                    Enterprise Resource &<br/>Analytical SQL Workbench
                 </h1>
 
                 {/* Description */}
                 <p style={{
-                    fontSize: '0.95rem',
+                    fontFamily: 'var(--font-mono)',
+                    fontSize: '0.85rem',
+                    textTransform: 'uppercase',
                     color: 'var(--text-muted)',
                     maxWidth: '720px',
-                    marginBottom: '1.5rem',
+                    marginBottom: '2rem',
                     lineHeight: 1.5
                 }}>
                     Comprehensive relational database system engineered for real-time querying, record management, multi-table aggregation, and analytics across employees, departments, projects, invoices, assets, and payroll.
                 </p>
 
                 {/* Key Metrics Overview Grid */}
-                <div className="stats-grid" style={{ marginBottom: '1.5rem', gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))' }}>
-                    <div className="stat-card">
+                <div className="stats-grid" style={{ marginBottom: '2rem', gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))' }}>
+                    <div className="stat-card" style={{ border: '1px solid var(--border-color)', background: 'var(--bg-page)', borderRadius: '0' }}>
                         <div>
-                            <div className="stat-lbl">ER Tables</div>
-                            <div className="stat-val" style={{ color: 'var(--primary)' }}>15</div>
+                            <div className="stat-lbl" style={{ fontFamily: 'var(--font-mono)' }}>ER Tables</div>
+                            <div className="stat-val" style={{ color: 'var(--primary)', fontFamily: 'var(--font-sans)' }}>15</div>
                         </div>
-                        <div className="stat-icon" style={{ backgroundColor: 'var(--primary-light)', color: 'var(--primary)' }}>
+                        <div className="stat-icon" style={{ backgroundColor: 'transparent', border: '1px solid var(--primary)', color: 'var(--primary)', borderRadius: '0' }}>
                             <Layers className="w-5 h-5" />
                         </div>
                     </div>
 
-                    <div className="stat-card">
+                    <div className="stat-card" style={{ border: '1px solid var(--border-color)', background: 'var(--bg-page)', borderRadius: '0' }}>
                         <div>
-                            <div className="stat-lbl">Employees</div>
-                            <div className="stat-val">{stats.employees}</div>
+                            <div className="stat-lbl" style={{ fontFamily: 'var(--font-mono)' }}>Employees</div>
+                            <div className="stat-val" style={{ color: 'var(--text-main)', fontFamily: 'var(--font-sans)' }}>{stats.employees}</div>
                         </div>
-                        <div className="stat-icon" style={{ backgroundColor: 'var(--info-light)', color: 'var(--info)' }}>
+                        <div className="stat-icon" style={{ backgroundColor: 'transparent', border: '1px solid var(--text-main)', color: 'var(--text-main)', borderRadius: '0' }}>
                             <Users className="w-5 h-5" />
                         </div>
                     </div>
 
-                    <div className="stat-card">
+                    <div className="stat-card" style={{ border: '1px solid var(--border-color)', background: 'var(--bg-page)', borderRadius: '0' }}>
                         <div>
-                            <div className="stat-lbl">Active Projects</div>
-                            <div className="stat-val">{stats.projects}</div>
+                            <div className="stat-lbl" style={{ fontFamily: 'var(--font-mono)' }}>Active Projects</div>
+                            <div className="stat-val" style={{ color: 'var(--warning)', fontFamily: 'var(--font-sans)' }}>{stats.projects}</div>
                         </div>
-                        <div className="stat-icon" style={{ backgroundColor: 'var(--warning-light)', color: 'var(--warning-text)' }}>
+                        <div className="stat-icon" style={{ backgroundColor: 'transparent', border: '1px solid var(--warning)', color: 'var(--warning)', borderRadius: '0' }}>
                             <FolderGit2 className="w-5 h-5" />
                         </div>
                     </div>
 
-                    <div className="stat-card">
+                    <div className="stat-card" style={{ border: '1px solid var(--border-color)', background: 'var(--bg-page)', borderRadius: '0' }}>
                         <div>
-                            <div className="stat-lbl">Paid Revenue</div>
-                            <div className="stat-val" style={{ color: 'var(--success-text)' }}>${stats.totalRevenue ? stats.totalRevenue.toLocaleString() : '265,000'}</div>
+                            <div className="stat-lbl" style={{ fontFamily: 'var(--font-mono)' }}>Paid Revenue</div>
+                            <div className="stat-val" style={{ color: 'var(--success)', fontFamily: 'var(--font-sans)' }}>${stats.totalRevenue ? stats.totalRevenue.toLocaleString() : '265,000'}</div>
                         </div>
-                        <div className="stat-icon" style={{ backgroundColor: 'var(--success-light)', color: 'var(--success-text)' }}>
+                        <div className="stat-icon" style={{ backgroundColor: 'transparent', border: '1px solid var(--success)', color: 'var(--success)', borderRadius: '0' }}>
                             <DollarSign className="w-5 h-5" />
                         </div>
                     </div>
@@ -138,7 +141,7 @@ export default function HeroBanner({ onExploreClick, onRunQueryClick, onOpenERDi
                         onClick={onOpenERDiagram}
                         className="btn btn-outline"
                     >
-                        <Building2 className="w-4 h-4 text-indigo-600" />
+                        <Building2 className="w-4 h-4" />
                         <span>Inspect ER Schema</span>
                     </button>
                 </div>

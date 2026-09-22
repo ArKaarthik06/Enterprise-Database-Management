@@ -184,10 +184,10 @@ export default function TableViewer() {
             <div style={{ display: 'flex', flexWrap: 'wrap', alignItems: 'center', justifyContent: 'space-between', gap: '1rem', marginBottom: '1.25rem' }}>
                 <div>
                     <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', marginBottom: '0.2rem' }}>
-                        <TableIcon className="w-5 h-5 text-indigo-600" />
+                        <TableIcon className="w-5 h-5" style={{ color: 'var(--primary)' }} />
                         <span className="badge badge-indigo">15 Relational Tables</span>
                     </div>
-                    <h2 style={{ fontSize: '1.35rem', fontWeight: 800, color: 'var(--secondary)' }}>
+                    <h2 style={{ fontFamily: 'var(--font-mono)', fontSize: '1.35rem', fontWeight: 800, textTransform: 'uppercase', color: 'var(--primary)' }}>
                         Database Record Explorer
                     </h2>
                 </div>
@@ -270,7 +270,7 @@ export default function TableViewer() {
                                     <div style={{ display: 'flex', alignItems: 'center', gap: '0.3rem' }}>
                                         <span>{col.name}</span>
                                         {col.pk === 1 && <span className="badge badge-warning">PK</span>}
-                                        <ArrowUpDown className="w-3 h-3 text-slate-400" />
+                                        <ArrowUpDown className="w-3 h-3" style={{ color: 'var(--text-muted)' }} />
                                     </div>
                                 </th>
                             ))}
@@ -323,20 +323,20 @@ export default function TableViewer() {
                                                 className="btn btn-ghost btn-sm"
                                                 title="Inspect Record JSON"
                                             >
-                                                <Eye className="w-3.5 h-3.5 text-indigo-600" />
+                                                <Eye className="w-3.5 h-3.5" style={{ color: 'var(--primary)' }} />
                                             </button>
                                             <button
                                                 onClick={() => handleOpenEditModal(row)}
                                                 className="btn btn-ghost btn-sm"
                                                 title="Edit Record"
                                             >
-                                                <Edit className="w-3.5 h-3.5 text-info" />
+                                                <Edit className="w-3.5 h-3.5" style={{ color: 'var(--info)' }} />
                                             </button>
                                             <button
                                                 onClick={() => handleDeleteRecord(row)}
                                                 className="btn btn-ghost btn-sm"
                                                 title="Delete Record"
-                                                style={{ color: 'var(--danger-text)' }}
+                                                style={{ color: 'var(--danger)' }}
                                             >
                                                 <Trash2 className="w-3.5 h-3.5" />
                                             </button>
@@ -398,11 +398,11 @@ export default function TableViewer() {
                 <div className="modal-overlay" onClick={() => setInspectRow(null)}>
                     <div className="modal-card" onClick={e => e.stopPropagation()}>
                         <div className="modal-header">
-                            <h3 className="modal-title">Record JSON Data ({selectedTable})</h3>
+                            <h3 className="modal-title" style={{ fontFamily: 'var(--font-mono)' }}>Record JSON Data ({selectedTable})</h3>
                             <button onClick={() => setInspectRow(null)} className="btn btn-ghost btn-sm">✕</button>
                         </div>
                         <div className="modal-body">
-                            <pre className="font-mono" style={{ backgroundColor: '#0f172a', color: '#38bdf8', padding: '1rem', borderRadius: 'var(--radius-sm)', overflowX: 'auto', fontSize: '0.825rem' }}>
+                            <pre className="font-mono" style={{ backgroundColor: 'var(--bg-page)', color: 'var(--primary)', border: '1px solid var(--border-color)', padding: '1rem', borderRadius: '0', overflowX: 'auto', fontSize: '0.825rem' }}>
                                 {JSON.stringify(inspectRow, null, 2)}
                             </pre>
                         </div>

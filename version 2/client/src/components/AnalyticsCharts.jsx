@@ -86,10 +86,10 @@ export default function AnalyticsCharts() {
             <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(320px, 1fr))', gap: '1.5rem' }}>
                 
                 {/* 1. Department Salaries Distribution */}
-                <div className="card" style={{ padding: '1.5rem' }}>
+                <div className="card" style={{ padding: '1.5rem', border: '1px solid var(--border-color)', borderRadius: '0' }}>
                     <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', marginBottom: '0.25rem' }}>
-                        <BarChart3 className="w-5 h-5 text-indigo-600" />
-                        <h3 style={{ fontSize: '1.1rem', fontWeight: 700, color: 'var(--secondary)' }}>Department Average Salary ($)</h3>
+                        <BarChart3 className="w-5 h-5" style={{ color: 'var(--primary)' }} />
+                        <h3 style={{ fontFamily: 'var(--font-mono)', fontSize: '1.1rem', fontWeight: 800, textTransform: 'uppercase', color: 'var(--primary)' }}>Department Average Salary ($)</h3>
                     </div>
                     <p style={{ fontSize: '0.8rem', color: 'var(--text-muted)', marginBottom: '1.25rem' }}>
                         Aggregated using SQL <code>AVG(salary)</code> grouped by department
@@ -112,10 +112,10 @@ export default function AnalyticsCharts() {
                 </div>
 
                 {/* 2. Invoice Revenue Breakdown */}
-                <div className="card" style={{ padding: '1.5rem' }}>
+                <div className="card" style={{ padding: '1.5rem', border: '1px solid var(--border-color)', borderRadius: '0' }}>
                     <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', marginBottom: '0.25rem' }}>
-                        <PieChartIcon className="w-5 h-5 text-indigo-600" />
-                        <h3 style={{ fontSize: '1.1rem', fontWeight: 700, color: 'var(--secondary)' }}>Invoice Revenue Breakdown</h3>
+                        <PieChartIcon className="w-5 h-5" style={{ color: 'var(--primary)' }} />
+                        <h3 style={{ fontFamily: 'var(--font-mono)', fontSize: '1.1rem', fontWeight: 800, textTransform: 'uppercase', color: 'var(--primary)' }}>Invoice Revenue Breakdown</h3>
                     </div>
                     <p style={{ fontSize: '0.8rem', color: 'var(--text-muted)', marginBottom: '1.25rem' }}>
                         SQL <code>SUM(amount)</code> grouped by payment status (Paid, Pending, Overdue)
@@ -158,10 +158,10 @@ export default function AnalyticsCharts() {
             <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(320px, 1fr))', gap: '1.5rem' }}>
                 
                 {/* 3. Task Status Ratios */}
-                <div className="card" style={{ padding: '1.5rem' }}>
+                <div className="card" style={{ padding: '1.5rem', border: '1px solid var(--border-color)', borderRadius: '0' }}>
                     <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', marginBottom: '0.25rem' }}>
-                        <TrendingUp className="w-5 h-5 text-indigo-600" />
-                        <h3 style={{ fontSize: '1.1rem', fontWeight: 700, color: 'var(--secondary)' }}>Task Execution Progress</h3>
+                        <TrendingUp className="w-5 h-5" style={{ color: 'var(--primary)' }} />
+                        <h3 style={{ fontFamily: 'var(--font-mono)', fontSize: '1.1rem', fontWeight: 800, textTransform: 'uppercase', color: 'var(--primary)' }}>Task Execution Progress</h3>
                     </div>
                     <p style={{ fontSize: '0.8rem', color: 'var(--text-muted)', marginBottom: '1.25rem' }}>
                         Project task volume count by status (Completed, In Progress, Pending)
@@ -183,10 +183,10 @@ export default function AnalyticsCharts() {
                 </div>
 
                 {/* 4. Asset Categories */}
-                <div className="card" style={{ padding: '1.5rem' }}>
+                <div className="card" style={{ padding: '1.5rem', border: '1px solid var(--border-color)', borderRadius: '0' }}>
                     <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', marginBottom: '0.25rem' }}>
-                        <Building2 className="w-5 h-5 text-indigo-600" />
-                        <h3 style={{ fontSize: '1.1rem', fontWeight: 700, color: 'var(--secondary)' }}>Hardware Asset Distribution</h3>
+                        <Building2 className="w-5 h-5" style={{ color: 'var(--primary)' }} />
+                        <h3 style={{ fontFamily: 'var(--font-mono)', fontSize: '1.1rem', fontWeight: 800, textTransform: 'uppercase', color: 'var(--primary)' }}>Hardware Asset Distribution</h3>
                     </div>
                     <p style={{ fontSize: '0.8rem', color: 'var(--text-muted)', marginBottom: '1.25rem' }}>
                         IT Infrastructure devices categorized by hardware asset class

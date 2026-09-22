@@ -208,3 +208,30 @@ CREATE TABLE IF NOT EXISTS performance_reviews (
     FOREIGN KEY (employee_id) REFERENCES employees(employee_id) ON DELETE CASCADE,
     FOREIGN KEY (reviewer_id) REFERENCES employees(employee_id) ON DELETE CASCADE
 );
+
+
+-- 16. Leads Table
+CREATE TABLE IF NOT EXISTS leads (
+    lead_id INTEGER PRIMARY KEY AUTOINCREMENT,
+    company_name VARCHAR(100) NOT NULL,
+    contact_name VARCHAR(100) NOT NULL,
+    email VARCHAR(100),
+    phone VARCHAR(15),
+    status VARCHAR(20) DEFAULT 'New',
+    expected_value DECIMAL(10,2) DEFAULT 0.00,
+    assigned_to INTEGER,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    FOREIGN KEY (assigned_to) REFERENCES employees(employee_id) ON DELETE SET NULL
+);
+
+-- 17. Interactions Table
+CREATE TABLE IF NOT EXISTS interactions (
+    interaction_id INTEGER PRIMARY KEY AUTOINCREMENT,
+    entity_type VARCHAR(20) NOT NULL,
+    entity_id INTEGER NOT NULL,
+    interaction_type VARCHAR(20) NOT NULL,
+    notes TEXT,
+    employee_id INTEGER,
+    date TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    FOREIGN KEY (employee_id) REFERENCES employees(employee_id) ON DELETE SET NULL
+);
