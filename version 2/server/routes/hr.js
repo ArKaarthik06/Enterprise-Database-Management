@@ -120,6 +120,8 @@ router.post('/reviews', async (req, res) => {
 // ATTENDANCE
 // ==========================================
 
+
+
 // GET /api/hr/attendance?manager_id=1
 // Get recent attendance for team
 router.get('/attendance', async (req, res) => {
