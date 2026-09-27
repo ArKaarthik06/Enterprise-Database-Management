@@ -1,609 +1,439 @@
-import React, { useState, useEffect } from 'react';
-import { Users, UserPlus, Briefcase, Mail, Phone, FolderGit2, Calendar, ChevronDown, ChevronUp, Laptop, Network, X, Trash2 } from 'lucide-react';
+import React, { useState } from 'react';
+import {
+    Users, UserPlus, FolderGit2, Calendar, Clock, Laptop, Network, Trash2, Pencil, Plus,
+    ChevronDown, ChevronRight, Phone, Star
+} from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 import ProjectTracker from './ProjectTracker';
 import LeaveRequests from './LeaveRequests';
 import PerformanceReviews from './PerformanceReviews';
 import TeamAttendance from './TeamAttendance';
+import EmployeeFormModal from './EmployeeForm';
+import {
+    PageHeader, Tabs, Panel, StatusBadge, EmptyState, Loading, ErrorNote, Avatar, StatCard,
+    FormModal, Field, Modal, useFetch, useForm, useAction, useLookups, api, fmtMoney, fmtDate, fullName, code
+} from './ui';
 
 export default function ManagerDashboard() {
     const { user } = useAuth();
-    const [team, setTeam] = useState([]);
-    const [loading, setLoading] = useState(true);
-    const [activeTab, setActiveTab] = useState('team'); // 'team' | 'projects' | 'leaves' | 'attendance'
-    const [expandedEmpId, setExpandedEmpId] = useState(null);
-    const [showAddForm, setShowAddForm] = useState(false);
-    const [formData, setFormData] = useState({
-        first_name: '',
-        last_name: '',
-        email: '',
-        department_id: '1', // Defaulting for MVP
-        designation_id: '1',
-        salary: '60000'
-    });
+    const [activeTab, setActiveTab] = useState('team');
+    const team = useFetch(user?.employee_id ? `/api/employees/my-team?manager_id=${user.employee_id}` : null, []);
+    const leaves = useFetch(user?.employee_id ? `/api/hr/leaves?manager_id=${user.employee_id}` : null, []);
 
-    const fetchTeam = async () => {
-        if (!user || !user.employee_id) {
-            setLoading(false);
-            return;
-        }
-        try {
-            const res = await fetch(`/api/employees/my-team?manager_id=${user.employee_id}`);
-            if (res.ok) {
-                const data = await res.json();
-                setTeam(data);
-            }
-        } catch (err) {
-            console.error('Error fetching team:', err);
-        } finally {
-            setLoading(false);
-        }
-    };
-
-    useEffect(() => {
-        fetchTeam();
-    }, [user]);
-
-    const handleInputChange = (e) => {
-        setFormData({ ...formData, [e.target.name]: e.target.value });
-    };
-
-    const handleAddEmployee = async (e) => {
-        e.preventDefault();
-        try {
-            const payload = {
-                ...formData,
-                manager_id: user.employee_id
-            };
-            const res = await fetch('/api/employees/add-subordinate', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify(payload)
-            });
-            
-            if (res.ok) {
-                setShowAddForm(false);
-                setFormData({ ...formData, first_name: '', last_name: '', email: '' }); // Reset fields
-                fetchTeam(); // Refresh list
-            } else {
-                alert('Failed to add employee');
-            }
-        } catch (err) {
-            console.error(err);
-        }
-    };
-
-    if (!user || !user.employee_id) {
-        return (
-            <div style={{ padding: '3rem', textAlign: 'center', color: 'var(--text-muted)' }}>
-                <h2>Welcome, {user?.name || 'User'}</h2>
-                <p>You do not have an employee profile linked to act as a manager.</p>
-            </div>
-        );
+    if (!user?.employee_id) {
+        return <EmptyState icon={Users} title="No employee profile linked" hint="This account isn't linked to an employee record, so it has no direct reports." />;
     }
 
+    const pendingLeaves = leaves.data.filter(l => l.status === 'Pending').length;
+    const tabs = [
+        { id: 'team', label: 'Direct reports', icon: Users, count: team.data.length },
+        { id: 'projects', label: 'Projects & tasks', icon: FolderGit2 },
+        { id: 'leaves', label: 'Leave approvals', icon: Calendar, count: pendingLeaves, attention: true },
+        { id: 'attendance', label: 'Attendance', icon: Clock },
+        { id: 'assets', label: 'Assets', icon: Laptop },
+        { id: 'teams', label: 'Teams', icon: Network }
+    ];
+
     return (
-        <div style={{ maxWidth: '1200px', margin: '0 auto', padding: '2rem 1rem' }}>
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-end', marginBottom: '2rem' }}>
-                <div>
-                    <h1 style={{ fontFamily: 'var(--font-mono)', fontSize: '2rem', fontWeight: '800', textTransform: 'uppercase', marginBottom: '0.5rem', color: 'var(--primary)' }}>
-                        Manager Dashboard
-                    </h1>
-                    <p style={{ fontFamily: 'var(--font-mono)', color: 'var(--text-muted)', textTransform: 'uppercase', fontSize: '0.85rem' }}>
-                        Manage your team, track performance, and add new subordinates.
-                    </p>
-                </div>
-                <button 
-                    onClick={() => setShowAddForm(!showAddForm)}
-                    style={{
-                        display: 'flex', alignItems: 'center', gap: '0.5rem',
-                        background: showAddForm ? 'transparent' : 'var(--primary)',
-                        color: showAddForm ? 'var(--text-main)' : 'var(--primary-text)',
-                        border: '1px solid var(--primary)',
-                        padding: '0.75rem 1.25rem',
-                        fontFamily: 'var(--font-mono)', fontWeight: '800', textTransform: 'uppercase',
-                        cursor: 'pointer', transition: 'all 0.1s'
-                    }}
-                    onMouseEnter={(e) => e.target.style.boxShadow = 'var(--shadow-glow)'}
-                    onMouseLeave={(e) => e.target.style.boxShadow = 'none'}
-                >
-                    {showAddForm ? 'Cancel' : <><UserPlus className="w-4 h-4" /> Add Team Member</>}
-                </button>
-            </div>
-            
-            <div style={{ display: 'flex', gap: '1rem', marginBottom: '2rem', borderBottom: '1px solid var(--border-color)' }}>
-                <button 
-                    onClick={() => setActiveTab('team')}
-                    style={{
-                        background: 'none', border: 'none', borderBottom: activeTab === 'team' ? '2px solid var(--primary)' : '2px solid transparent',
-                        padding: '0.75rem 1rem', color: activeTab === 'team' ? 'var(--primary)' : 'var(--text-muted)',
-                        fontFamily: 'var(--font-mono)', fontWeight: 800, textTransform: 'uppercase', cursor: 'pointer',
-                        display: 'flex', alignItems: 'center', gap: '0.5rem'
-                    }}
-                >
-                    <Users className="w-4 h-4" /> Team Management
-                </button>
-                <button 
-                    onClick={() => setActiveTab('projects')}
-                    style={{
-                        background: 'none', border: 'none', borderBottom: activeTab === 'projects' ? '2px solid var(--primary)' : '2px solid transparent',
-                        padding: '0.75rem 1rem', color: activeTab === 'projects' ? 'var(--primary)' : 'var(--text-muted)',
-                        fontFamily: 'var(--font-mono)', fontWeight: 800, textTransform: 'uppercase', cursor: 'pointer',
-                        display: 'flex', alignItems: 'center', gap: '0.5rem'
-                    }}
-                >
-                    <FolderGit2 className="w-4 h-4" /> Projects & Tasks
-                </button>
-                <button 
-                    onClick={() => setActiveTab('leaves')}
-                    style={{
-                        background: 'none', border: 'none', borderBottom: activeTab === 'leaves' ? '2px solid var(--primary)' : '2px solid transparent',
-                        padding: '0.75rem 1rem', color: activeTab === 'leaves' ? 'var(--primary)' : 'var(--text-muted)',
-                        fontFamily: 'var(--font-mono)', fontWeight: 800, textTransform: 'uppercase', cursor: 'pointer',
-                        display: 'flex', alignItems: 'center', gap: '0.5rem'
-                    }}
-                >
-                    <Calendar className="w-4 h-4" /> Leave Requests
-                </button>
-                <button 
-                    onClick={() => setActiveTab('attendance')}
-                    style={{
-                        background: 'none', border: 'none', borderBottom: activeTab === 'attendance' ? '2px solid var(--primary)' : '2px solid transparent',
-                        padding: '0.75rem 1rem', color: activeTab === 'attendance' ? 'var(--primary)' : 'var(--text-muted)',
-                        fontFamily: 'var(--font-mono)', fontWeight: 800, textTransform: 'uppercase', cursor: 'pointer',
-                        display: 'flex', alignItems: 'center', gap: '0.5rem'
-                    }}
-                >
-                    <Users className="w-4 h-4" /> Attendance
-                </button>
-                <button
-                    onClick={() => setActiveTab('assets')}
-                    style={{
-                        background: 'none', border: 'none', borderBottom: activeTab === 'assets' ? '2px solid var(--primary)' : '2px solid transparent',
-                        padding: '0.75rem 1rem', color: activeTab === 'assets' ? 'var(--primary)' : 'var(--text-muted)',
-                        fontFamily: 'var(--font-mono)', fontWeight: 800, textTransform: 'uppercase', cursor: 'pointer',
-                        display: 'flex', alignItems: 'center', gap: '0.5rem'
-                    }}
-                >
-                    <Laptop className="w-4 h-4" /> Assets
-                </button>
-                <button
-                    onClick={() => setActiveTab('explicit-teams')}
-                    style={{
-                        background: 'none', border: 'none', borderBottom: activeTab === 'explicit-teams' ? '2px solid var(--primary)' : '2px solid transparent',
-                        padding: '0.75rem 1rem', color: activeTab === 'explicit-teams' ? 'var(--primary)' : 'var(--text-muted)',
-                        fontFamily: 'var(--font-mono)', fontWeight: 800, textTransform: 'uppercase', cursor: 'pointer',
-                        display: 'flex', alignItems: 'center', gap: '0.5rem'
-                    }}
-                >
-                    <Network className="w-4 h-4" /> Teams
-                </button>
+        <div className="page">
+            <PageHeader
+                eyebrow="Manager workspace"
+                title={`Good to see you, ${user.name.split(' ')[0]}`}
+                subtitle="Your reports, their work, and everything waiting on your approval."
+            />
+
+            <div className="stats-grid">
+                <StatCard label="Direct reports" value={team.data.length} meta={`${team.data.filter(e => e.status === 'Active').length} active`} icon={Users} />
+                <StatCard label="Pending leave requests" value={pendingLeaves} meta="Awaiting your decision" icon={Calendar} tone={pendingLeaves ? 'warning' : 'success'} />
+                <StatCard label="Team payroll (annual)" value={fmtMoney(team.data.reduce((s, e) => s + (e.salary || 0), 0))} meta="Sum of base salaries" icon={Star} tone="info" />
             </div>
 
-            {activeTab === 'attendance' ? (
-                <div className="animate-fade-in">
-                    <TeamAttendance />
-                </div>
-            ) : activeTab === 'leaves' ? (
-                <div className="animate-fade-in">
-                    <LeaveRequests />
-                </div>
-            ) : activeTab === 'projects' ? (
-                <div className="animate-fade-in">
-                    <ProjectTracker />
-                </div>
-            ) : activeTab === 'assets' ? (
-                <div className="animate-fade-in">
-                    <ManagerAssets />
-                </div>
-            ) : activeTab === 'explicit-teams' ? (
-                <div className="animate-fade-in">
-                    <ManagerTeams />
-                </div>
+            <Tabs tabs={tabs} active={activeTab} onChange={setActiveTab} />
+
+            <div className="animate-fade-in" key={activeTab}>
+                {activeTab === 'team' && <TeamRoster team={team} managerId={user.employee_id} />}
+                {activeTab === 'projects' && <ProjectTracker />}
+                {activeTab === 'leaves' && <LeaveRequests leaves={leaves} />}
+                {activeTab === 'attendance' && <TeamAttendance team={team.data} />}
+                {activeTab === 'assets' && <ManagerAssets />}
+                {activeTab === 'teams' && <ManagerTeams />}
+            </div>
+        </div>
+    );
+}
+
+function TeamRoster({ team, managerId }) {
+    const [expandedId, setExpandedId] = useState(null);
+    const [editing, setEditing] = useState(null); // null | 'new' | employee
+    const { data, loading, error, reload } = team;
+
+    return (
+        <Panel
+            title="Direct reports"
+            subtitle="Click a row to view and add performance reviews"
+            icon={Users}
+            flush
+            actions={<button className="btn btn-primary btn-sm" onClick={() => setEditing('new')}><UserPlus size={15} /> Add team member</button>}
+        >
+            <ErrorNote message={error} onRetry={reload} />
+            {loading ? <Loading /> : data.length === 0 ? (
+                <EmptyState icon={Users} title="No one reports to you yet" hint="Add a team member to start assigning work." action={<button className="btn btn-primary btn-sm" onClick={() => setEditing('new')}>Add first member</button>} />
             ) : (
-                <div className="animate-fade-in">
-                    {showAddForm && (
-                <div className="animate-fade-in" style={{
-                    background: 'var(--bg-card)', border: '1px solid var(--primary)',
-                    padding: '2rem', marginBottom: '2rem', boxShadow: 'var(--shadow-glow)'
-                }}>
-                    <h3 style={{ fontFamily: 'var(--font-mono)', textTransform: 'uppercase', fontSize: '1.25rem', marginBottom: '1.5rem', borderBottom: '1px solid var(--border-color)', paddingBottom: '0.75rem', color: 'var(--primary)' }}>
-                        Add New Subordinate
-                    </h3>
-                    <form onSubmit={handleAddEmployee} style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1.5rem' }}>
-                        <div>
-                            <label style={{ display: 'block', marginBottom: '0.5rem', fontFamily: 'var(--font-mono)', fontSize: '0.85rem', textTransform: 'uppercase', color: 'var(--text-muted)' }}>First Name</label>
-                            <input name="first_name" value={formData.first_name} onChange={handleInputChange} required className="form-input" />
-                        </div>
-                        <div>
-                            <label style={{ display: 'block', marginBottom: '0.5rem', fontFamily: 'var(--font-mono)', fontSize: '0.85rem', textTransform: 'uppercase', color: 'var(--text-muted)' }}>Last Name</label>
-                            <input name="last_name" value={formData.last_name} onChange={handleInputChange} required className="form-input" />
-                        </div>
-                        <div>
-                            <label style={{ display: 'block', marginBottom: '0.5rem', fontFamily: 'var(--font-mono)', fontSize: '0.85rem', textTransform: 'uppercase', color: 'var(--text-muted)' }}>Department ID</label>
-                            <input name="department_id" type="number" value={formData.department_id} onChange={handleInputChange} required className="form-input" />
-                        </div>
-                        <div>
-                            <label style={{ display: 'block', marginBottom: '0.5rem', fontFamily: 'var(--font-mono)', fontSize: '0.85rem', textTransform: 'uppercase', color: 'var(--text-muted)' }}>Designation ID</label>
-                            <input name="designation_id" type="number" value={formData.designation_id} onChange={handleInputChange} required className="form-input" />
-                        </div>
-                        <div>
-                            <label style={{ display: 'block', marginBottom: '0.5rem', fontFamily: 'var(--font-mono)', fontSize: '0.85rem', textTransform: 'uppercase', color: 'var(--text-muted)' }}>Base Salary</label>
-                            <input name="salary" type="number" value={formData.salary} onChange={handleInputChange} required className="form-input" />
-                        </div>
-                        <div style={{ display: 'flex', alignItems: 'flex-end' }}>
-                            <button type="submit" style={{
-                                width: '100%', padding: '0.75rem', background: 'var(--primary)', color: 'var(--primary-text)',
-                                border: '1px solid var(--primary)', fontFamily: 'var(--font-mono)', fontWeight: '800', 
-                                textTransform: 'uppercase', cursor: 'pointer', transition: 'all 0.1s'
-                            }}
-                            onMouseEnter={(e) => e.target.style.boxShadow = 'var(--shadow-glow)'}
-                            onMouseLeave={(e) => e.target.style.boxShadow = 'none'}
-                            >
-                                Save Employee
-                            </button>
-                        </div>
-                    </form>
-                </div>
-            )}
-
-            <div style={{
-                background: 'var(--bg-card)',
-                border: '1px solid var(--border-color)',
-                overflow: 'hidden'
-            }}>
-                <div style={{ padding: '1.25rem 1.5rem', borderBottom: '1px solid var(--border-color)', display: 'flex', alignItems: 'center', gap: '0.75rem', background: 'var(--bg-subtle)' }}>
-                    <Users className="w-5 h-5" style={{ color: 'var(--primary)' }} />
-                    <h2 style={{ fontFamily: 'var(--font-mono)', fontSize: '1.1rem', fontWeight: '800', textTransform: 'uppercase' }}>Direct Reports ({team.length})</h2>
-                </div>
-                
-                {loading ? (
-                    <div style={{ padding: '3rem', textAlign: 'center', color: 'var(--text-muted)' }}>LOADING...</div>
-                ) : team.length === 0 ? (
-                    <div style={{ padding: '3rem', textAlign: 'center', color: 'var(--text-muted)' }}>
-                        <div style={{ background: 'rgba(255,255,255,0.05)', width: '64px', height: '64px', display: 'flex', alignItems: 'center', justifyContent: 'center', margin: '0 auto 1rem', border: '1px solid var(--border-color)' }}>
-                            <Users className="w-8 h-8 opacity-50" />
-                        </div>
-                        <p style={{ fontFamily: 'var(--font-mono)', textTransform: 'uppercase', fontSize: '0.85rem' }}>NO EMPLOYEES CURRENTLY REPORT TO YOU.</p>
-                        <button onClick={() => setShowAddForm(true)} style={{ marginTop: '1rem', background: 'none', border: '1px solid var(--primary)', color: 'var(--primary)', padding: '0.5rem 1rem', fontFamily: 'var(--font-mono)', textTransform: 'uppercase', fontWeight: '700', cursor: 'pointer' }}>
-                            ADD FIRST TEAM MEMBER
-                        </button>
-                    </div>
-                ) : (
-                    <div style={{ overflowX: 'auto' }}>
-                        <table style={{ width: '100%', borderCollapse: 'collapse', textAlign: 'left', fontFamily: 'var(--font-mono)', fontSize: '0.85rem' }}>
-                            <thead>
-                                <tr style={{ background: 'var(--bg-subtle)', borderBottom: '1px solid var(--border-color)' }}>
-                                    <th style={{ padding: '1rem 1.5rem', color: 'var(--text-muted)', fontWeight: '700', textTransform: 'uppercase' }}>EMPLOYEE</th>
-                                    <th style={{ padding: '1rem 1.5rem', color: 'var(--text-muted)', fontWeight: '700', textTransform: 'uppercase' }}>ROLE</th>
-                                    <th style={{ padding: '1rem 1.5rem', color: 'var(--text-muted)', fontWeight: '700', textTransform: 'uppercase' }}>CONTACT</th>
-                                    <th style={{ padding: '1rem 1.5rem', color: 'var(--text-muted)', fontWeight: '700', textTransform: 'uppercase' }}>STATUS</th>
-                                </tr>
-                            </thead>
-                            <tbody>
-                                {team.map((emp) => (
+                <div className="table-container">
+                    <table className="data-table">
+                        <thead>
+                            <tr>
+                                <th>Employee</th>
+                                <th>Role</th>
+                                <th>Contact</th>
+                                <th className="num">Salary</th>
+                                <th>Joined</th>
+                                <th>Status</th>
+                                <th />
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {data.map(emp => {
+                                const open = expandedId === emp.employee_id;
+                                return (
                                     <React.Fragment key={emp.employee_id}>
-                                        <tr 
-                                            onClick={() => setExpandedEmpId(expandedEmpId === emp.employee_id ? null : emp.employee_id)}
-                                            style={{ borderBottom: '1px solid var(--border-color)', transition: 'background 0.2s', cursor: 'pointer' }} 
-                                            className="hover:bg-white/5"
-                                        >
-                                            <td style={{ padding: '1rem 1.5rem' }}>
-                                                <div style={{ fontWeight: '600', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-                                                    {expandedEmpId === emp.employee_id ? <ChevronUp className="w-4 h-4 text-primary" /> : <ChevronDown className="w-4 h-4 text-muted" />}
-                                                    {emp.first_name} {emp.last_name}
-                                                </div>
-                                                <div style={{ fontSize: '0.8rem', color: 'var(--text-muted)', marginLeft: '1.5rem' }}>ID: EMP-{emp.employee_id.toString().padStart(4, '0')}</div>
-                                            </td>
-                                            <td style={{ padding: '1rem 1.5rem' }}>
-                                                <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', fontSize: '0.9rem' }}>
-                                                    <Briefcase className="w-4 h-4" style={{ color: 'var(--primary)' }} />
-                                                    {emp.designation_title || 'Employee'}
-                                                </div>
-                                                <div style={{ fontSize: '0.8rem', color: 'var(--text-muted)', marginLeft: '1.4rem' }}>
-                                                    {emp.department_name || 'No Dept'}
+                                        <tr className={`clickable ${open ? 'selected' : ''}`} onClick={() => setExpandedId(open ? null : emp.employee_id)}>
+                                            <td>
+                                                <div className="row">
+                                                    {open ? <ChevronDown size={15} className="muted" /> : <ChevronRight size={15} className="muted" />}
+                                                    <Avatar name={fullName(emp)} size="sm" />
+                                                    <div>
+                                                        <div className="cell-main">{fullName(emp)}</div>
+                                                        <div className="cell-sub mono">{code('EMP', emp.employee_id)}</div>
+                                                    </div>
                                                 </div>
                                             </td>
-                                            <td style={{ padding: '1rem 1.5rem' }}>
-                                                <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', fontSize: '0.85rem', marginBottom: '0.25rem' }}>
-                                                    <Mail className="w-3.5 h-3.5" style={{ color: 'var(--text-muted)' }} />
-                                                    {emp.email || 'N/A'}
-                                                </div>
-                                                <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', fontSize: '0.85rem' }}>
-                                                    <Phone className="w-3.5 h-3.5" style={{ color: 'var(--text-muted)' }} />
-                                                    {emp.phone || 'N/A'}
-                                                </div>
+                                            <td>
+                                                <div>{emp.designation_title || '—'}</div>
+                                                <div className="cell-sub">{emp.department_name}</div>
                                             </td>
-                                            <td style={{ padding: '1rem 1.5rem' }}>
-                                                <span style={{ 
-                                                    display: 'inline-block', padding: '0.25rem 0.5rem', fontSize: '0.75rem', fontWeight: '800', textTransform: 'uppercase',
-                                                    border: emp.status === 'Active' ? '1px solid var(--success)' : '1px solid var(--danger)',
-                                                    color: emp.status === 'Active' ? 'var(--success)' : 'var(--danger)'
-                                                }}>
-                                                    {emp.status}
-                                                </span>
+                                            <td>
+                                                <div className="text-sm">{emp.email || <span className="null">no login</span>}</div>
+                                                {emp.phone && <div className="cell-sub row" style={{ gap: 4 }}><Phone size={11} />{emp.phone}</div>}
+                                            </td>
+                                            <td className="num">{fmtMoney(emp.salary)}</td>
+                                            <td className="text-sm muted nowrap">{fmtDate(emp.joining_date)}</td>
+                                            <td><StatusBadge status={emp.status} /></td>
+                                            <td onClick={e => e.stopPropagation()}>
+                                                <div className="row-actions">
+                                                    <button className="btn btn-ghost btn-icon btn-sm" title="Edit" onClick={() => setEditing(emp)}><Pencil size={15} /></button>
+                                                </div>
                                             </td>
                                         </tr>
-                                        {expandedEmpId === emp.employee_id && (
-                                            <tr style={{ background: 'var(--bg-card-hover)', borderBottom: '1px solid var(--border-color)' }}>
-                                                <td colSpan="4" style={{ padding: '1.5rem', borderLeft: '3px solid var(--primary)' }}>
-                                                    <PerformanceReviews employeeId={emp.employee_id} employeeName={`${emp.first_name} ${emp.last_name}`} />
+                                        {open && (
+                                            <tr>
+                                                <td colSpan={7} style={{ background: 'var(--bg-inset)', padding: '1rem 1.25rem' }}>
+                                                    <PerformanceReviews employeeId={emp.employee_id} employeeName={fullName(emp)} />
                                                 </td>
                                             </tr>
                                         )}
                                     </React.Fragment>
-                                ))}
-                            </tbody>
-                        </table>
-                    </div>
-                )}
-            </div>
-            </div>
+                                );
+                            })}
+                        </tbody>
+                    </table>
+                </div>
             )}
-        </div>
+
+            {editing && (
+                <EmployeeFormModal
+                    employee={editing === 'new' ? null : editing}
+                    defaults={{ manager_id: managerId }}
+                    lockManager={editing === 'new'}
+                    onClose={() => setEditing(null)}
+                    onSaved={reload}
+                />
+            )}
+        </Panel>
     );
 }
+
+// ============================================================
+// Assets
+// ============================================================
+const ASSET_STATUSES = ['Available', 'In Use', 'Maintenance', 'Retired'];
 
 function ManagerAssets() {
-    const [assets, setAssets] = useState([]);
-    const [employees, setEmployees] = useState([]);
+    const assets = useFetch('/api/dashboard/manager/assets', []);
+    const { data: lk } = useLookups();
+    const run = useAction();
+    const [editing, setEditing] = useState(null);
+    const [filter, setFilter] = useState('All');
 
-    const fetchData = async () => {
-        try {
-            const [aRes, eRes] = await Promise.all([
-                fetch('/api/dashboard/manager/assets'),
-                fetch('/api/dashboard/manager/all-employees')
-            ]);
-            if (aRes.ok) setAssets(await aRes.json());
-            if (eRes.ok) setEmployees(await eRes.json());
-        } catch (err) {
-            console.error(err);
-        }
+    const handleAssign = async (asset, employeeId) => {
+        const ok = await run(
+            () => api.put(`/api/dashboard/manager/assets/${asset.asset_id}/assign`, {
+                assigned_to: employeeId || null,
+                status: employeeId ? 'In Use' : 'Available'
+            }),
+            employeeId ? `${asset.name} assigned` : `${asset.name} returned to inventory`
+        );
+        if (ok) assets.reload();
     };
 
-    useEffect(() => { fetchData(); }, []);
+    const handleDelete = async (asset) => {
+        if (!window.confirm(`Delete ${asset.name}? This removes it from the asset register.`)) return;
+        if (await run(() => api.del(`/api/dashboard/manager/assets/${asset.asset_id}`), 'Asset deleted')) assets.reload();
+    };
 
-    const handleAssign = async (assetId, employeeId) => {
-        try {
-            await fetch(`/api/dashboard/manager/assets/${assetId}/assign`, {
-                method: 'PUT',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ assigned_to: employeeId || null, status: employeeId ? 'In Use' : 'Available' })
-            });
-            fetchData();
-        } catch (err) {
-            console.error(err);
-        }
+    const counts = ASSET_STATUSES.reduce((acc, s) => ({ ...acc, [s]: assets.data.filter(a => a.status === s).length }), {});
+    const visible = filter === 'All' ? assets.data : assets.data.filter(a => a.status === filter);
+
+    return (
+        <Panel
+            title="Asset register"
+            subtitle={`${assets.data.length} assets · ${counts['In Use'] || 0} in use · ${counts.Maintenance || 0} in maintenance`}
+            icon={Laptop}
+            flush
+            actions={<>
+                <div className="segmented">
+                    {['All', ...ASSET_STATUSES].map(s => (
+                        <button key={s} className={filter === s ? 'active' : ''} onClick={() => setFilter(s)}>{s}</button>
+                    ))}
+                </div>
+                <button className="btn btn-primary btn-sm" onClick={() => setEditing('new')}><Plus size={15} /> Register asset</button>
+            </>}
+        >
+            {assets.loading ? <Loading /> : visible.length === 0 ? (
+                <EmptyState icon={Laptop} title="No assets here" hint="Register laptops, monitors, licences and other equipment." />
+            ) : (
+                <div className="table-container">
+                    <table className="data-table">
+                        <thead>
+                            <tr><th>Asset</th><th>Category</th><th>Purchased</th><th>Status</th><th>Assigned to</th><th /></tr>
+                        </thead>
+                        <tbody>
+                            {visible.map(a => (
+                                <tr key={a.asset_id}>
+                                    <td>
+                                        <div className="cell-main">{a.name}</div>
+                                        <div className="cell-sub mono">{code('AST', a.asset_id)}</div>
+                                    </td>
+                                    <td>{a.category}</td>
+                                    <td className="text-sm muted">{fmtDate(a.purchase_date)}</td>
+                                    <td><StatusBadge status={a.status} /></td>
+                                    <td>
+                                        <select
+                                            className="form-select sm"
+                                            style={{ width: 190 }}
+                                            value={a.assigned_to || ''}
+                                            disabled={a.status === 'Retired' || a.status === 'Maintenance'}
+                                            onChange={(e) => handleAssign(a, e.target.value)}
+                                        >
+                                            <option value="">Unassigned</option>
+                                            {lk.employees.filter(e => e.status !== 'Inactive').map(e => (
+                                                <option key={e.employee_id} value={e.employee_id}>{fullName(e)}</option>
+                                            ))}
+                                        </select>
+                                    </td>
+                                    <td>
+                                        <div className="row-actions">
+                                            <button className="btn btn-ghost btn-icon btn-sm" title="Edit" onClick={() => setEditing(a)}><Pencil size={15} /></button>
+                                            <button className="btn btn-ghost btn-icon btn-sm danger" title="Delete" onClick={() => handleDelete(a)}><Trash2 size={15} /></button>
+                                        </div>
+                                    </td>
+                                </tr>
+                            ))}
+                        </tbody>
+                    </table>
+                </div>
+            )}
+
+            {editing && <AssetModal asset={editing === 'new' ? null : editing} onClose={() => setEditing(null)} onSaved={assets.reload} />}
+        </Panel>
+    );
+}
+
+function AssetModal({ asset, onClose, onSaved }) {
+    const run = useAction();
+    const [form, bind] = useForm({
+        name: asset?.name || '',
+        category: asset?.category || 'Laptop',
+        purchase_date: asset?.purchase_date || '',
+        status: asset?.status || 'Available'
+    });
+
+    const submit = async () => {
+        const ok = await run(
+            () => asset ? api.put(`/api/dashboard/manager/assets/${asset.asset_id}`, form) : api.post('/api/dashboard/manager/assets', form),
+            asset ? 'Asset updated' : 'Asset registered'
+        );
+        if (ok) { onSaved(); onClose(); }
     };
 
     return (
-        <div style={{ background: 'var(--bg-card)', padding: '2rem', border: '1px solid var(--border-color)' }}>
-            <h3 style={{ fontFamily: 'var(--font-mono)', fontWeight: 800, color: 'var(--primary)', marginBottom: '1.5rem', textTransform: 'uppercase' }}>Asset Inventory</h3>
-            <table className="table">
-                <thead>
-                    <tr>
-                        <th>ID</th>
-                        <th>Name</th>
-                        <th>Category</th>
-                        <th>Status</th>
-                        <th>Assigned To</th>
-                        <th>Action</th>
-                    </tr>
-                </thead>
-                <tbody>
-                    {assets.map(a => (
-                        <tr key={a.asset_id}>
-                            <td>AST-{a.asset_id}</td>
-                            <td>{a.name}</td>
-                            <td>{a.category}</td>
-                            <td><span className={`badge ${a.status === 'Available' ? 'badge-emerald' : 'badge-amber'}`}>{a.status}</span></td>
-                            <td>{a.first_name ? `${a.first_name} ${a.last_name}` : 'Unassigned'}</td>
-                            <td>
-                                <select 
-                                    className="form-input" 
-                                    style={{ padding: '0.2rem', width: '150px' }}
-                                    value={a.assigned_to || ''}
-                                    onChange={(e) => handleAssign(a.asset_id, e.target.value)}
-                                >
-                                    <option value="">Unassign</option>
-                                    {employees.map(e => <option key={e.employee_id} value={e.employee_id}>{e.first_name} {e.last_name}</option>)}
-                                </select>
-                            </td>
-                        </tr>
+        <FormModal title={asset ? `Edit ${asset.name}` : 'Register asset'} onClose={onClose} onSubmit={submit}>
+            <div className="form-grid">
+                <Field label="Name" required span><input className="form-input" value={form.name} onChange={bind('name')} required placeholder='e.g. MacBook Pro 14"' /></Field>
+                <Field label="Category" required>
+                    <input className="form-input" list="asset-categories" value={form.category} onChange={bind('category')} required />
+                    <datalist id="asset-categories">
+                        {['Laptop', 'Monitor', 'Mobile', 'Server', 'Networking', 'Software License', 'Furniture'].map(c => <option key={c} value={c} />)}
+                    </datalist>
+                </Field>
+                <Field label="Purchase date"><input className="form-input" type="date" value={form.purchase_date} onChange={bind('purchase_date')} /></Field>
+                {asset && (
+                    <Field label="Lifecycle status" span hint="Setting Available or Retired automatically unassigns the asset.">
+                        <select className="form-select" value={form.status} onChange={bind('status')}>
+                            {ASSET_STATUSES.map(s => <option key={s}>{s}</option>)}
+                        </select>
+                    </Field>
+                )}
+            </div>
+        </FormModal>
+    );
+}
+
+// ============================================================
+// Teams
+// ============================================================
+function ManagerTeams() {
+    const { user } = useAuth();
+    const teams = useFetch('/api/dashboard/manager/teams', []);
+    const run = useAction();
+    const [editing, setEditing] = useState(null);
+    const [managing, setManaging] = useState(null);
+
+    const handleDelete = async (team) => {
+        if (!window.confirm(`Delete "${team.name}"? Its ${team.member_count} membership(s) are removed and its projects become unassigned.`)) return;
+        if (await run(() => api.del(`/api/dashboard/manager/teams/${team.team_id}`), 'Team deleted')) teams.reload();
+    };
+
+    return (
+        <div className="stack">
+            <div className="row-between">
+                <div className="muted text-sm">{teams.data.length} teams across the organisation</div>
+                <button className="btn btn-primary btn-sm" onClick={() => setEditing('new')}><Plus size={15} /> Create team</button>
+            </div>
+
+            {teams.loading ? <Loading /> : teams.data.length === 0 ? (
+                <div className="card"><EmptyState icon={Network} title="No teams yet" hint="Group employees into teams, then assign teams to projects." /></div>
+            ) : (
+                <div className="grid-cards">
+                    {teams.data.map(t => (
+                        <div key={t.team_id} className="card interactive stack-sm">
+                            <div className="row-between">
+                                <div className="strong">{t.name}</div>
+                                <div className="row" style={{ gap: 0 }}>
+                                    <button className="btn btn-ghost btn-icon btn-sm" title="Edit team" onClick={() => setEditing(t)}><Pencil size={14} /></button>
+                                    <button className="btn btn-ghost btn-icon btn-sm danger" title="Delete team" onClick={() => handleDelete(t)}><Trash2 size={14} /></button>
+                                </div>
+                            </div>
+                            <div className="text-sm muted">{t.department_name} · Lead: {t.manager_first ? `${t.manager_first} ${t.manager_last}` : 'none'}</div>
+                            <div className="row text-sm" style={{ gap: '1rem', marginTop: '0.25rem' }}>
+                                <span><strong>{t.member_count}</strong> <span className="muted">members</span></span>
+                                <span><strong>{t.project_count}</strong> <span className="muted">projects</span></span>
+                            </div>
+                            <button className="btn btn-outline btn-sm" style={{ marginTop: '0.35rem' }} onClick={() => setManaging(t)}>
+                                <Users size={14} /> Manage members
+                            </button>
+                        </div>
                     ))}
-                </tbody>
-            </table>
+                </div>
+            )}
+
+            {editing && <TeamModal team={editing === 'new' ? null : editing} defaultLead={user?.employee_id} onClose={() => setEditing(null)} onSaved={teams.reload} />}
+            {managing && <TeamMembersModal team={managing} onClose={() => { setManaging(null); teams.reload(); }} />}
         </div>
     );
 }
 
-function ManagerTeams() {
-    const { user } = useAuth();
-    const [teams, setTeams] = useState([]);
-    const [employees, setEmployees] = useState([]);
-    const [departments, setDepartments] = useState([]);
-    
-    // Create Team Form State
-    const [showCreateForm, setShowCreateForm] = useState(false);
-    const [teamName, setTeamName] = useState('');
-    const [teamDept, setTeamDept] = useState('');
-    
-    // Manage Members State
-    const [managingTeam, setManagingTeam] = useState(null);
-    const [teamMembers, setTeamMembers] = useState([]);
-    const [selectedEmployeeToAdd, setSelectedEmployeeToAdd] = useState('');
+function TeamModal({ team, defaultLead, onClose, onSaved }) {
+    const { data: lk } = useLookups();
+    const run = useAction();
+    const [form, bind] = useForm({
+        name: team?.name || '',
+        department_id: team?.department_id || '',
+        manager_id: team?.manager_id || defaultLead || ''
+    });
 
-    const fetchData = async () => {
-        try {
-            const [tRes, eRes, dRes] = await Promise.all([
-                fetch('/api/dashboard/manager/teams'),
-                fetch('/api/dashboard/manager/all-employees'),
-                fetch('/api/dashboard/manager/departments')
-            ]);
-            if (tRes.ok) setTeams(await tRes.json());
-            if (eRes.ok) setEmployees(await eRes.json());
-            if (dRes.ok) setDepartments(await dRes.json());
-        } catch (err) {
-            console.error(err);
-        }
-    };
-
-    useEffect(() => { fetchData(); }, []);
-
-    const handleCreateTeam = async (e) => {
-        e.preventDefault();
-        try {
-            const res = await fetch('/api/dashboard/manager/teams', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ name: teamName, department_id: teamDept, manager_id: user?.id })
-            });
-            if (res.ok) {
-                setShowCreateForm(false);
-                setTeamName('');
-                setTeamDept('');
-                fetchData();
-            } else {
-                const data = await res.json();
-                alert(data.error);
-            }
-        } catch (err) {
-            console.error(err);
-        }
-    };
-
-    const handleManageClick = async (team) => {
-        setManagingTeam(team);
-        fetchTeamMembers(team.team_id);
-    };
-
-    const fetchTeamMembers = async (teamId) => {
-        try {
-            const res = await fetch(`/api/dashboard/manager/teams/${teamId}/members`);
-            if (res.ok) {
-                setTeamMembers(await res.json());
-            }
-        } catch (err) {
-            console.error(err);
-        }
-    };
-
-    const handleAddMember = async () => {
-        if (!selectedEmployeeToAdd) return;
-        try {
-            const res = await fetch(`/api/dashboard/manager/teams/${managingTeam.team_id}/members`, {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ employee_id: selectedEmployeeToAdd })
-            });
-            if (res.ok) {
-                fetchTeamMembers(managingTeam.team_id);
-                setSelectedEmployeeToAdd('');
-            } else {
-                const data = await res.json();
-                alert(data.error);
-            }
-        } catch (err) {
-            console.error(err);
-        }
-    };
-
-    const handleRemoveMember = async (employeeId) => {
-        try {
-            const res = await fetch(`/api/dashboard/manager/teams/${managingTeam.team_id}/members/${employeeId}`, {
-                method: 'DELETE'
-            });
-            if (res.ok) {
-                fetchTeamMembers(managingTeam.team_id);
-            }
-        } catch (err) {
-            console.error(err);
-        }
+    const submit = async () => {
+        const ok = await run(
+            () => team ? api.put(`/api/dashboard/manager/teams/${team.team_id}`, form) : api.post('/api/dashboard/manager/teams', form),
+            team ? 'Team updated' : 'Team created'
+        );
+        if (ok) { onSaved(); onClose(); }
     };
 
     return (
-        <div style={{ background: 'var(--bg-card)', padding: '2rem', border: '1px solid var(--border-color)' }}>
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1.5rem' }}>
-                <h3 style={{ fontFamily: 'var(--font-mono)', fontWeight: 800, color: 'var(--primary)', margin: 0, textTransform: 'uppercase' }}>Teams</h3>
-                <button className="btn btn-primary btn-sm" onClick={() => setShowCreateForm(!showCreateForm)}>
-                    {showCreateForm ? 'Cancel' : '+ Create Team'}
-                </button>
+        <FormModal title={team ? `Edit ${team.name}` : 'Create team'} onClose={onClose} onSubmit={submit} size="sm">
+            <div className="stack">
+                <Field label="Team name" required><input className="form-input" value={form.name} onChange={bind('name')} required /></Field>
+                <Field label="Department" required>
+                    <select className="form-select" value={form.department_id} onChange={bind('department_id')} required>
+                        <option value="">Select department…</option>
+                        {lk.departments.map(d => <option key={d.department_id} value={d.department_id}>{d.name}</option>)}
+                    </select>
+                </Field>
+                <Field label="Team lead">
+                    <select className="form-select" value={form.manager_id} onChange={bind('manager_id')}>
+                        <option value="">No lead</option>
+                        {lk.employees.map(e => <option key={e.employee_id} value={e.employee_id}>{fullName(e)}</option>)}
+                    </select>
+                </Field>
             </div>
+        </FormModal>
+    );
+}
 
-            {showCreateForm && (
-                <div style={{ marginBottom: '2rem', padding: '1rem', background: 'var(--bg-subtle)', border: '1px solid var(--border-color)' }}>
-                    <form onSubmit={handleCreateTeam} style={{ display: 'flex', gap: '1rem', alignItems: 'flex-end' }}>
-                        <div style={{ flex: 1 }}>
-                            <label className="form-label">Team Name</label>
-                            <input className="form-input" value={teamName} onChange={e => setTeamName(e.target.value)} required />
-                        </div>
-                        <div style={{ flex: 1 }}>
-                            <label className="form-label">Department</label>
-                            <select className="form-select" value={teamDept} onChange={e => setTeamDept(e.target.value)} required>
-                                <option value="">Select Department...</option>
-                                {departments.map(d => (
-                                    <option key={d.department_id} value={d.department_id}>{d.name}</option>
-                                ))}
-                            </select>
-                        </div>
-                        <button type="submit" className="btn btn-primary">Save Team</button>
-                    </form>
+function TeamMembersModal({ team, onClose }) {
+    const members = useFetch(`/api/dashboard/manager/teams/${team.team_id}/members`, []);
+    const { data: lk } = useLookups();
+    const run = useAction();
+    const [toAdd, setToAdd] = useState('');
+
+    const available = lk.employees.filter(e => e.status !== 'Inactive' && !members.data.some(m => m.employee_id === e.employee_id));
+
+    const add = async () => {
+        if (!toAdd) return;
+        if (await run(() => api.post(`/api/dashboard/manager/teams/${team.team_id}/members`, { employee_id: toAdd }), 'Member added')) {
+            setToAdd('');
+            members.reload();
+        }
+    };
+
+    const remove = async (m) => {
+        if (await run(() => api.del(`/api/dashboard/manager/teams/${team.team_id}/members/${m.employee_id}`), `${m.first_name} removed`)) members.reload();
+    };
+
+    return (
+        <Modal title={team.name} subtitle="Rows in the team_members junction table" onClose={onClose}>
+            <div className="modal-body stack">
+                <div className="row">
+                    <select className="form-select grow" value={toAdd} onChange={e => setToAdd(e.target.value)}>
+                        <option value="">Add an employee…</option>
+                        {available.map(e => <option key={e.employee_id} value={e.employee_id}>{fullName(e)} — {e.designation}</option>)}
+                    </select>
+                    <button className="btn btn-primary" onClick={add} disabled={!toAdd}>Add</button>
                 </div>
-            )}
 
-            <div style={{ display: 'grid', gap: '1.5rem', gridTemplateColumns: 'repeat(auto-fill, minmax(300px, 1fr))' }}>
-                {teams.map(t => (
-                    <div key={t.team_id} style={{ border: '1px solid var(--border-color)', background: 'var(--bg-subtle)', padding: '1.5rem', display: 'flex', flexDirection: 'column' }}>
-                        <div style={{ fontWeight: 800, color: 'var(--text-main)', fontSize: '1.1rem', marginBottom: '0.5rem', fontFamily: 'var(--font-mono)' }}>{t.name}</div>
-                        <div style={{ color: 'var(--text-muted)', fontSize: '0.9rem', marginBottom: '1rem', flex: 1 }}>Manager: {t.manager_first || 'None'} {t.manager_last || ''}</div>
-                        <button className="btn btn-outline btn-sm" onClick={() => handleManageClick(t)}>
-                            Manage Members
-                        </button>
-                    </div>
-                ))}
-            </div>
-
-            {managingTeam && (
-                <div style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, background: 'rgba(0,0,0,0.5)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000 }}>
-                    <div style={{ background: 'var(--bg-card)', padding: '2rem', width: '500px', maxWidth: '90%', border: '1px solid var(--border-color)', boxShadow: 'var(--shadow-glow)' }}>
-                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1.5rem' }}>
-                            <h3 style={{ margin: 0, fontFamily: 'var(--font-mono)' }}>Manage: {managingTeam.name}</h3>
-                            <button className="btn btn-ghost" onClick={() => setManagingTeam(null)}><X className="w-5 h-5" /></button>
-                        </div>
-                        
-                        <div style={{ display: 'flex', gap: '0.5rem', marginBottom: '1.5rem' }}>
-                            <select className="form-select" style={{ flex: 1 }} value={selectedEmployeeToAdd} onChange={e => setSelectedEmployeeToAdd(e.target.value)}>
-                                <option value="">Select Employee to Add...</option>
-                                {employees.filter(e => !teamMembers.find(tm => tm.employee_id === e.employee_id)).map(e => (
-                                    <option key={e.employee_id} value={e.employee_id}>{e.first_name} {e.last_name} ({e.role})</option>
-                                ))}
-                            </select>
-                            <button className="btn btn-primary" onClick={handleAddMember}>Add</button>
-                        </div>
-
-                        <div>
-                            <h4 style={{ fontFamily: 'var(--font-mono)', fontSize: '0.9rem', marginBottom: '1rem', color: 'var(--text-muted)' }}>CURRENT MEMBERS ({teamMembers.length})</h4>
-                            {teamMembers.length === 0 ? (
-                                <div style={{ color: 'var(--text-muted)', fontStyle: 'italic', fontSize: '0.9rem' }}>No members in this team.</div>
-                            ) : (
-                                <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem', maxHeight: '300px', overflowY: 'auto' }}>
-                                    {teamMembers.map(m => (
-                                        <div key={m.employee_id} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '0.75rem', background: 'var(--bg-subtle)', border: '1px solid var(--border-color)' }}>
-                                            <div>
-                                                <div style={{ fontWeight: 600 }}>{m.first_name} {m.last_name}</div>
-                                                <div style={{ fontSize: '0.8rem', color: 'var(--text-muted)' }}>{m.role}</div>
-                                            </div>
-                                            <button className="btn btn-ghost btn-sm" onClick={() => handleRemoveMember(m.employee_id)} title="Remove">
-                                                <Trash2 className="w-4 h-4 text-danger" />
-                                            </button>
+                <div>
+                    <div className="section-title">Members ({members.data.length})</div>
+                    {members.loading ? <Loading /> : members.data.length === 0 ? (
+                        <div className="text-sm muted">No members yet.</div>
+                    ) : (
+                        <div className="card" style={{ padding: 0 }}>
+                            <div className="list">
+                                {members.data.map(m => (
+                                    <div key={m.employee_id} className="list-item">
+                                        <Avatar name={fullName(m)} size="sm" />
+                                        <div className="grow">
+                                            <div className="strong text-sm">{fullName(m)}</div>
+                                            <div className="text-xs muted">{m.role}</div>
                                         </div>
-                                    ))}
-                                </div>
-                            )}
+                                        <button className="btn btn-ghost btn-icon btn-sm danger" onClick={() => remove(m)} title="Remove from team"><Trash2 size={14} /></button>
+                                    </div>
+                                ))}
+                            </div>
                         </div>
-                    </div>
+                    )}
                 </div>
-            )}
-        </div>
+            </div>
+        </Modal>
     );
 }

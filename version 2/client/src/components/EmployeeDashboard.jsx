@@ -1,434 +1,432 @@
-import React, { useState, useEffect } from 'react';
+import React, { useEffect, useState } from 'react';
 import { useAuth } from '../context/AuthContext';
-import { CheckCircle2, Circle, Clock, Check, Plus, AlertCircle, FileText, CalendarCheck, Star, Wallet, Laptop, User } from 'lucide-react';
+import {
+    LayoutDashboard, CheckCircle2, Circle, Clock, CalendarDays, Star, Wallet, Laptop, User, Plus,
+    LogIn, LogOut, AlertTriangle, Printer, Pencil
+} from 'lucide-react';
+import {
+    PageHeader, Tabs, Panel, StatCard, StatusBadge, EmptyState, Loading, ErrorNote, FormModal, Modal, Field, Avatar,
+    useFetch, useForm, useAction, api, fmtMoney, fmtDate, code, isPastDue, todayISO, MONTHS
+} from './ui';
+import PerformanceReviews from './PerformanceReviews';
+import { hoursBetween } from './TeamAttendance';
 
 export default function EmployeeDashboard() {
     const { user } = useAuth();
-    const [activeTab, setActiveTab] = useState('tasks');
+    const [activeTab, setActiveTab] = useState('overview');
+    const employeeId = user?.employee_id;
+
+    const tasks = useFetch(employeeId ? `/api/projects/employee-tasks?employee_id=${employeeId}` : null, []);
+    const openTasks = tasks.data.filter(t => t.status !== 'Completed');
+
+    if (!employeeId) {
+        return <EmptyState icon={User} title="No employee profile linked" hint="Ask HR to link your login to an employee record." />;
+    }
+
     const tabs = [
-        { id: 'tasks', label: 'My Tasks', icon: CheckCircle2 },
-        { id: 'leaves', label: 'Leave Requests', icon: Clock },
-        { id: 'attendance_reviews', label: 'Attendance & Reviews', icon: Star },
-        { id: 'payroll', label: 'My Payroll', icon: Wallet },
-        { id: 'assets', label: 'My Assets', icon: Laptop },
-        { id: 'profile', label: 'My Profile', icon: User }
+        { id: 'overview', label: 'Overview', icon: LayoutDashboard },
+        { id: 'tasks', label: 'My tasks', icon: CheckCircle2, count: openTasks.length },
+        { id: 'leaves', label: 'Leave', icon: CalendarDays },
+        { id: 'attendance', label: 'Attendance', icon: Clock },
+        { id: 'reviews', label: 'Reviews', icon: Star },
+        { id: 'payroll', label: 'Payslips', icon: Wallet },
+        { id: 'assets', label: 'Assets', icon: Laptop },
+        { id: 'profile', label: 'Profile', icon: User }
     ];
 
     return (
-        <div style={{ display: 'flex', flexDirection: 'column', height: '100%', padding: '2rem', background: 'var(--bg-page)', color: 'var(--text-main)', overflowY: 'auto' }}>
-            <div style={{ marginBottom: '2rem' }}>
-                <h2 style={{ fontFamily: 'var(--font-mono)', fontWeight: 800, fontSize: '2rem', textTransform: 'uppercase', color: 'var(--primary)', margin: 0, textShadow: 'var(--shadow-glow)' }}>
-                    Employee Portal
-                </h2>
-                <p style={{ color: 'var(--text-muted)', fontFamily: 'var(--font-mono)' }}>Welcome back, {user?.name}. Manage your daily tasks, leaves, and performance.</p>
-            </div>
-
-            <div style={{ display: 'flex', borderBottom: '2px solid var(--border-color)', marginBottom: '2rem' }}>
-                {tabs.map(tab => {
-                    const Icon = tab.icon;
-                    const isActive = activeTab === tab.id;
-                    return (
-                        <button
-                            key={tab.id}
-                            onClick={() => setActiveTab(tab.id)}
-                            style={{
-                                background: isActive ? 'var(--primary)' : 'transparent',
-                                color: isActive ? 'var(--primary-text)' : 'var(--text-muted)',
-                                border: 'none',
-                                borderTop: isActive ? '2px solid var(--primary)' : '2px solid transparent',
-                                borderRight: '1px solid var(--border-color)',
-                                padding: '1rem 1.5rem',
-                                fontFamily: 'var(--font-mono)',
-                                fontWeight: 800,
-                                textTransform: 'uppercase',
-                                display: 'flex',
-                                alignItems: 'center',
-                                gap: '0.5rem',
-                                cursor: 'pointer',
-                                transition: 'all 0.2s'
-                            }}
-                            className="hover:bg-white/10"
-                        >
-                            <Icon className="w-4 h-4" />
-                            {tab.label}
-                        </button>
-                    );
-                })}
-            </div>
-
-            <div style={{ flex: 1 }}>
-                {activeTab === 'tasks' && <EmployeeTasks employeeId={user?.employee_id} />}
-                {activeTab === 'leaves' && <EmployeeLeaves employeeId={user?.employee_id} />}
-                {activeTab === 'attendance_reviews' && <EmployeeAttendanceReviews employeeId={user?.employee_id} />}
-                {activeTab === 'payroll' && <EmployeePayroll employeeId={user?.employee_id} />}
-                {activeTab === 'assets' && <EmployeeAssets employeeId={user?.employee_id} />}
-                {activeTab === 'profile' && <EmployeeProfile employeeId={user?.employee_id} />}
+        <div className="page">
+            <PageHeader eyebrow="My workspace" title={`Welcome back, ${user.name.split(' ')[0]}`} subtitle="Your tasks, time off, attendance and pay in one place." />
+            <Tabs tabs={tabs} active={activeTab} onChange={setActiveTab} />
+            <div className="animate-fade-in" key={activeTab}>
+                {activeTab === 'overview' && <Overview employeeId={employeeId} tasks={tasks} goTo={setActiveTab} />}
+                {activeTab === 'tasks' && <EmployeeTasks tasks={tasks} />}
+                {activeTab === 'leaves' && <EmployeeLeaves employeeId={employeeId} />}
+                {activeTab === 'attendance' && <EmployeeAttendance employeeId={employeeId} />}
+                {activeTab === 'reviews' && <div className="card"><PerformanceReviews employeeId={employeeId} readOnly /></div>}
+                {activeTab === 'payroll' && <EmployeePayroll employeeId={employeeId} />}
+                {activeTab === 'assets' && <EmployeeAssets employeeId={employeeId} />}
+                {activeTab === 'profile' && <EmployeeProfile employeeId={employeeId} />}
             </div>
         </div>
     );
 }
 
-function EmployeeTasks({ employeeId }) {
-    const [tasks, setTasks] = useState([]);
-    const [loading, setLoading] = useState(true);
+// ============================================================
+// Overview
+// ============================================================
+function Overview({ employeeId, tasks, goTo }) {
+    const leaveSummary = useFetch(`/api/hr/leaves/summary?employee_id=${employeeId}`, []);
+    const payroll = useFetch(`/api/dashboard/employee/payroll?employee_id=${employeeId}`, []);
 
-    useEffect(() => {
-        if (employeeId) {
-            fetch(`/api/projects/employee-tasks?employee_id=${employeeId}`)
-                .then(res => res.json())
-                .then(data => { setTasks(data); setLoading(false); })
-                .catch(err => { console.error(err); setLoading(false); });
-        }
-    }, [employeeId]);
-
-    const handleToggleStatus = async (taskId, currentStatus) => {
-        const newStatus = currentStatus === 'Completed' ? 'Pending' : 'Completed';
-        try {
-            const res = await fetch(`/api/projects/tasks/${taskId}/status`, {
-                method: 'PATCH',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ status: newStatus })
-            });
-            if (res.ok) {
-                setTasks(tasks.map(t => t.task_id === taskId ? { ...t, status: newStatus } : t));
-            }
-        } catch (err) {
-            console.error(err);
-        }
-    };
-
-    if (loading) return <div style={{ color: 'var(--text-muted)', fontFamily: 'var(--font-mono)' }}>Loading tasks...</div>;
-
-    if (tasks.length === 0) {
-        return (
-            <div style={{ padding: '3rem', textAlign: 'center', border: '1px solid var(--border-color)', background: 'var(--bg-card)' }}>
-                <CheckCircle2 className="w-8 h-8 opacity-50 mx-auto mb-4" style={{ color: 'var(--text-muted)' }} />
-                <p style={{ fontFamily: 'var(--font-mono)', color: 'var(--text-muted)', textTransform: 'uppercase' }}>No tasks assigned to you.</p>
-            </div>
-        );
-    }
+    const open = tasks.data.filter(t => t.status !== 'Completed');
+    const overdue = open.filter(t => isPastDue(t.due_date, t.status));
+    const leaveDays = leaveSummary.data.reduce((s, r) => s + (r.days || 0), 0);
+    const lastPay = payroll.data.find(p => p.status === 'Paid');
 
     return (
-        <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
-            {tasks.map(task => (
-                <div key={task.task_id} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '1rem', border: '1px solid var(--border-color)', background: 'var(--bg-card)' }}>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: '1rem' }}>
-                        <button onClick={() => handleToggleStatus(task.task_id, task.status)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: task.status === 'Completed' ? 'var(--success)' : 'var(--text-muted)' }}>
-                            {task.status === 'Completed' ? <CheckCircle2 className="w-6 h-6" /> : <Circle className="w-6 h-6" />}
-                        </button>
-                        <div>
-                            <div style={{ fontFamily: 'var(--font-mono)', fontSize: '1rem', fontWeight: 800, color: task.status === 'Completed' ? 'var(--text-muted)' : 'var(--text-main)', textDecoration: task.status === 'Completed' ? 'line-through' : 'none' }}>
-                                {task.title}
-                            </div>
-                            <div style={{ fontSize: '0.75rem', color: 'var(--primary)', fontFamily: 'var(--font-mono)', marginTop: '0.2rem' }}>
-                                Project: {task.project_name} • Priority: {task.priority}
-                            </div>
-                        </div>
-                    </div>
-                    {task.due_date && (
-                        <div style={{ fontSize: '0.75rem', color: new Date(task.due_date) < new Date() && task.status !== 'Completed' ? 'var(--danger)' : 'var(--text-muted)', fontFamily: 'var(--font-mono)' }}>
-                            Due: {task.due_date}
-                        </div>
-                    )}
+        <div className="stack">
+            <div className="grid-2">
+                <CheckInCard employeeId={employeeId} />
+                <div className="stats-grid" style={{ gridTemplateColumns: 'repeat(2, minmax(0, 1fr))' }}>
+                    <StatCard label="Open tasks" value={open.length} meta={overdue.length ? `${overdue.length} overdue` : 'Nothing overdue'} icon={CheckCircle2} tone={overdue.length ? 'danger' : 'primary'} />
+                    <StatCard label="Leave taken this year" value={`${leaveDays}d`} meta={`${leaveSummary.data.length} leave type(s)`} icon={CalendarDays} tone="info" />
+                    <StatCard label="Last net pay" value={lastPay ? fmtMoney(lastPay.net_salary) : '—'} meta={lastPay ? `${MONTHS[lastPay.month - 1]} ${lastPay.year}` : 'No payslips yet'} icon={Wallet} tone="success" />
+                    <StatCard label="Completed tasks" value={tasks.data.length - open.length} meta={`of ${tasks.data.length} assigned`} icon={Star} tone="warning" />
                 </div>
-            ))}
+            </div>
+
+            <Panel title="Up next" subtitle="Your open tasks, soonest due first" icon={CheckCircle2} flush actions={<button className="btn btn-ghost btn-sm" onClick={() => goTo('tasks')}>View all</button>}>
+                {tasks.loading ? <Loading /> : open.length === 0 ? (
+                    <EmptyState icon={CheckCircle2} title="All clear" hint="You have no open tasks." />
+                ) : (
+                    <div className="list">
+                        {open.slice(0, 5).map(t => (
+                            <div key={t.task_id} className="list-item">
+                                <div className="grow">
+                                    <div className="strong text-sm">{t.title}</div>
+                                    <div className="text-xs muted">{t.project_name}</div>
+                                </div>
+                                <StatusBadge status={t.priority} plain />
+                                <span className={`text-sm nowrap ${isPastDue(t.due_date, t.status) ? 'text-danger strong' : 'muted'}`} style={{ width: 110, textAlign: 'right' }}>{fmtDate(t.due_date)}</span>
+                            </div>
+                        ))}
+                    </div>
+                )}
+            </Panel>
         </div>
     );
 }
+
+function CheckInCard({ employeeId }) {
+    const today = useFetch(`/api/hr/attendance/today?employee_id=${employeeId}`, null);
+    const run = useAction();
+    const [now, setNow] = useState(new Date());
+
+    useEffect(() => {
+        const t = setInterval(() => setNow(new Date()), 30000);
+        return () => clearInterval(t);
+    }, []);
+
+    const act = async (kind) => {
+        if (await run(() => api.post(`/api/hr/attendance/check-${kind}`, { employee_id: employeeId }), r => r.message)) today.reload();
+    };
+
+    const rec = today.data;
+    return (
+        <div className="card stack-sm" style={{ justifyContent: 'space-between' }}>
+            <div className="row-between">
+                <div>
+                    <div className="stat-lbl">Today · {now.toLocaleDateString(undefined, { weekday: 'long', day: 'numeric', month: 'long' })}</div>
+                    <div className="stat-val mono" style={{ fontSize: '2rem' }}>{now.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</div>
+                </div>
+                {rec && <StatusBadge status={rec.status} />}
+            </div>
+            <div className="row text-sm muted" style={{ gap: '1.5rem' }}>
+                <span>In: <span className="mono strong" style={{ color: 'var(--text-main)' }}>{rec?.check_in || '—'}</span></span>
+                <span>Out: <span className="mono strong" style={{ color: 'var(--text-main)' }}>{rec?.check_out || '—'}</span></span>
+                <span>Hours: <span className="mono strong" style={{ color: 'var(--text-main)' }}>{hoursBetween(rec?.check_in, rec?.check_out)}</span></span>
+            </div>
+            <div className="row" style={{ marginTop: '0.4rem' }}>
+                {!rec?.check_in ? (
+                    <button className="btn btn-primary" onClick={() => act('in')}><LogIn size={16} /> Check in</button>
+                ) : !rec.check_out ? (
+                    <button className="btn btn-secondary" onClick={() => act('out')}><LogOut size={16} /> Check out</button>
+                ) : (
+                    <span className="text-sm text-success strong">Day complete — see you tomorrow.</span>
+                )}
+                <span className="text-xs muted">Check-ins after 09:30 are marked Late.</span>
+            </div>
+        </div>
+    );
+}
+
+// ============================================================
+// Tasks
+// ============================================================
+function EmployeeTasks({ tasks }) {
+    const run = useAction();
+    const [filter, setFilter] = useState('Open');
+
+    const setStatus = async (task, status) => {
+        tasks.setData(ts => ts.map(t => t.task_id === task.task_id ? { ...t, status } : t));
+        const ok = await run(() => api.patch(`/api/projects/tasks/${task.task_id}/status`, { status }), status === 'Completed' ? 'Nice work — task completed' : undefined);
+        if (!ok) tasks.reload();
+    };
+
+    const visible = tasks.data.filter(t => filter === 'All' || (filter === 'Open' ? t.status !== 'Completed' : t.status === 'Completed'));
+
+    return (
+        <Panel
+            title="My tasks"
+            icon={CheckCircle2}
+            flush
+            actions={<div className="segmented">{['Open', 'Completed', 'All'].map(f => <button key={f} className={filter === f ? 'active' : ''} onClick={() => setFilter(f)}>{f}</button>)}</div>}
+        >
+            <ErrorNote message={tasks.error} onRetry={tasks.reload} />
+            {tasks.loading ? <Loading /> : visible.length === 0 ? (
+                <EmptyState icon={CheckCircle2} title={filter === 'Open' ? 'No open tasks' : 'Nothing here'} hint="Tasks your manager assigns to you appear here." />
+            ) : (
+                <div className="table-container">
+                    <table className="data-table compact">
+                        <thead><tr><th style={{ width: 36 }} /><th>Task</th><th>Project</th><th>Priority</th><th>Due</th><th>Status</th></tr></thead>
+                        <tbody>
+                            {visible.map(t => {
+                                const done = t.status === 'Completed';
+                                const late = isPastDue(t.due_date, t.status);
+                                return (
+                                    <tr key={t.task_id}>
+                                        <td>
+                                            <button className={`check-btn ${done ? 'done' : ''}`} onClick={() => setStatus(t, done ? 'Pending' : 'Completed')} aria-label={done ? 'Reopen task' : 'Complete task'}>
+                                                {done ? <CheckCircle2 size={18} /> : <Circle size={18} />}
+                                            </button>
+                                        </td>
+                                        <td>
+                                            <div className={`strong text-sm ${done ? 'strike' : ''}`}>{t.title}</div>
+                                            {t.description && <div className="cell-sub">{t.description}</div>}
+                                        </td>
+                                        <td className="text-sm">{t.project_name}</td>
+                                        <td><StatusBadge status={t.priority} plain /></td>
+                                        <td className={`text-sm nowrap ${late ? 'text-danger strong' : 'muted'}`}>
+                                            {late && <AlertTriangle size={13} style={{ verticalAlign: '-2px', marginRight: 4 }} />}{fmtDate(t.due_date)}
+                                        </td>
+                                        <td>
+                                            <select className="form-select sm" style={{ width: 130 }} value={t.status} onChange={e => setStatus(t, e.target.value)} aria-label="Task status">
+                                                <option>Pending</option>
+                                                <option>In Progress</option>
+                                                <option>Completed</option>
+                                            </select>
+                                        </td>
+                                    </tr>
+                                );
+                            })}
+                        </tbody>
+                    </table>
+                </div>
+            )}
+        </Panel>
+    );
+}
+
+// ============================================================
+// Leave
+// ============================================================
+const LEAVE_TYPES = ['Annual Leave', 'Sick Leave', 'Casual Leave', 'Maternity Leave', 'Paternity Leave', 'Unpaid Leave'];
 
 function EmployeeLeaves({ employeeId }) {
-    const [leaves, setLeaves] = useState([]);
-    const [loading, setLoading] = useState(true);
+    const leaves = useFetch(`/api/hr/leaves?employee_id=${employeeId}`, []);
+    const summary = useFetch(`/api/hr/leaves/summary?employee_id=${employeeId}`, []);
+    const run = useAction();
     const [showForm, setShowForm] = useState(false);
-    const [formData, setFormData] = useState({ leave_type: 'Sick Leave', start_date: '', end_date: '', reason: '' });
 
-    const fetchLeaves = () => {
-        if (employeeId) {
-            fetch(`/api/dashboard/employee/leaves?employee_id=${employeeId}`)
-                .then(res => res.json())
-                .then(data => { setLeaves(data); setLoading(false); })
-                .catch(err => { console.error(err); setLoading(false); });
-        }
+    const cancel = async (leave) => {
+        if (!window.confirm('Withdraw this leave request?')) return;
+        if (await run(() => api.patch(`/api/hr/leaves/${leave.leave_id}/cancel`, { employee_id: employeeId }), 'Request withdrawn')) leaves.reload();
     };
-
-    useEffect(() => {
-        fetchLeaves();
-    }, [employeeId]);
-
-    const handleSubmit = async (e) => {
-        e.preventDefault();
-        try {
-            const res = await fetch('/api/dashboard/employee/request-leave', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ ...formData, employee_id: employeeId })
-            });
-            if (res.ok) {
-                setShowForm(false);
-                setFormData({ leave_type: 'Sick Leave', start_date: '', end_date: '', reason: '' });
-                fetchLeaves();
-            }
-        } catch (err) {
-            console.error(err);
-        }
-    };
-
-    if (loading) return <div style={{ color: 'var(--text-muted)' }}>Loading leaves...</div>;
 
     return (
-        <div>
-            <div style={{ marginBottom: '1rem', display: 'flex', justifyContent: 'flex-end' }}>
-                <button onClick={() => setShowForm(!showForm)} className="btn btn-primary">
-                    {showForm ? 'Cancel' : <><Plus className="w-4 h-4 mr-1" /> Request Leave</>}
-                </button>
+        <div className="stack">
+            <div className="stats-grid">
+                {summary.data.length === 0 ? (
+                    <StatCard label="Approved leave this year" value="0 days" meta="No approved leave yet" icon={CalendarDays} tone="info" />
+                ) : summary.data.map(s => (
+                    <StatCard key={s.leave_type} label={s.leave_type} value={`${s.days} day${s.days === 1 ? '' : 's'}`} meta={`${s.requests} approved request(s) this year`} icon={CalendarDays} tone="info" />
+                ))}
             </div>
 
-            {showForm && (
-                <form onSubmit={handleSubmit} style={{ background: 'var(--bg-card)', padding: '1.5rem', border: '1px solid var(--primary)', marginBottom: '2rem', boxShadow: 'var(--shadow-glow)' }}>
-                    <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem', marginBottom: '1rem' }}>
-                        <div>
-                            <label className="form-label">Leave Type</label>
-                            <select className="form-input" value={formData.leave_type} onChange={e => setFormData({...formData, leave_type: e.target.value})}>
-                                <option>Sick Leave</option>
-                                <option>Casual Leave</option>
-                                <option>Maternity Leave</option>
-                                <option>Paternity Leave</option>
-                                <option>Annual Leave</option>
-                            </select>
-                        </div>
-                        <div></div>
-                        <div>
-                            <label className="form-label">Start Date</label>
-                            <input type="date" required className="form-input" value={formData.start_date} onChange={e => setFormData({...formData, start_date: e.target.value})} />
-                        </div>
-                        <div>
-                            <label className="form-label">End Date</label>
-                            <input type="date" required className="form-input" value={formData.end_date} onChange={e => setFormData({...formData, end_date: e.target.value})} />
-                        </div>
-                        <div style={{ gridColumn: '1 / -1' }}>
-                            <label className="form-label">Reason</label>
-                            <input type="text" required className="form-input" value={formData.reason} onChange={e => setFormData({...formData, reason: e.target.value})} />
-                        </div>
+            <Panel
+                title="Leave requests"
+                icon={CalendarDays}
+                flush
+                actions={<button className="btn btn-primary btn-sm" onClick={() => setShowForm(true)}><Plus size={15} /> Request leave</button>}
+            >
+                {leaves.loading ? <Loading /> : leaves.data.length === 0 ? (
+                    <EmptyState icon={CalendarDays} title="No leave requests yet" hint="Requests go to your manager for approval." />
+                ) : (
+                    <div className="table-container">
+                        <table className="data-table">
+                            <thead><tr><th>Type</th><th>Dates</th><th className="num">Days</th><th>Reason</th><th>Status</th><th /></tr></thead>
+                            <tbody>
+                                {leaves.data.map(l => (
+                                    <tr key={l.leave_id}>
+                                        <td className="strong">{l.leave_type}</td>
+                                        <td className="text-sm nowrap">{fmtDate(l.start_date)} → {fmtDate(l.end_date)}</td>
+                                        <td className="num">{l.days}</td>
+                                        <td className="text-sm muted">{l.reason || '—'}</td>
+                                        <td>
+                                            <StatusBadge status={l.status} />
+                                            {l.approver_first && <div className="cell-sub">by {l.approver_first} {l.approver_last}</div>}
+                                        </td>
+                                        <td className="right">
+                                            {l.status === 'Pending' && <button className="btn btn-ghost btn-sm danger" onClick={() => cancel(l)}>Withdraw</button>}
+                                        </td>
+                                    </tr>
+                                ))}
+                            </tbody>
+                        </table>
                     </div>
-                    <button type="submit" className="btn btn-primary">Submit Request</button>
-                </form>
-            )}
+                )}
+            </Panel>
 
-            <div style={{ background: 'var(--bg-card)', border: '1px solid var(--border-color)' }}>
-                <table style={{ width: '100%', borderCollapse: 'collapse', textAlign: 'left' }}>
-                    <thead style={{ background: 'var(--bg-subtle)', fontFamily: 'var(--font-mono)', fontSize: '0.8rem', textTransform: 'uppercase', color: 'var(--text-muted)' }}>
-                        <tr>
-                            <th style={{ padding: '1rem', borderBottom: '1px solid var(--border-color)' }}>Type</th>
-                            <th style={{ padding: '1rem', borderBottom: '1px solid var(--border-color)' }}>Dates</th>
-                            <th style={{ padding: '1rem', borderBottom: '1px solid var(--border-color)' }}>Reason</th>
-                            <th style={{ padding: '1rem', borderBottom: '1px solid var(--border-color)' }}>Status</th>
-                        </tr>
-                    </thead>
-                    <tbody>
-                        {leaves.length === 0 ? (
-                            <tr><td colSpan="4" style={{ padding: '2rem', textAlign: 'center', color: 'var(--text-muted)', fontFamily: 'var(--font-mono)' }}>No leave requests found.</td></tr>
-                        ) : leaves.map(leave => (
-                            <tr key={leave.leave_id} style={{ borderBottom: '1px solid var(--border-color)' }}>
-                                <td style={{ padding: '1rem', fontWeight: 800, color: 'var(--text-main)', fontFamily: 'var(--font-mono)' }}>{leave.leave_type}</td>
-                                <td style={{ padding: '1rem', fontFamily: 'var(--font-mono)', fontSize: '0.85rem' }}>{leave.start_date} to {leave.end_date}</td>
-                                <td style={{ padding: '1rem', color: 'var(--text-muted)', fontSize: '0.9rem' }}>{leave.reason}</td>
-                                <td style={{ padding: '1rem' }}>
-                                    <span style={{ 
-                                        padding: '0.25rem 0.5rem', fontSize: '0.75rem', fontFamily: 'var(--font-mono)', textTransform: 'uppercase',
-                                        color: leave.status === 'Approved' ? 'var(--success)' : leave.status === 'Rejected' ? 'var(--danger)' : 'var(--warning)',
-                                        border: `1px solid ${leave.status === 'Approved' ? 'var(--success)' : leave.status === 'Rejected' ? 'var(--danger)' : 'var(--warning)'}`
-                                    }}>
-                                        {leave.status}
-                                    </span>
-                                </td>
-                            </tr>
-                        ))}
-                    </tbody>
-                </table>
-            </div>
+            {showForm && <LeaveRequestModal employeeId={employeeId} onClose={() => setShowForm(false)} onSaved={leaves.reload} />}
         </div>
     );
 }
 
-function EmployeeAttendanceReviews({ employeeId }) {
-    const [attendance, setAttendance] = useState([]);
-    const [reviews, setReviews] = useState([]);
-    const [loading, setLoading] = useState(true);
+function LeaveRequestModal({ employeeId, onClose, onSaved }) {
+    const run = useAction();
+    const [form, bind] = useForm({ leave_type: 'Annual Leave', start_date: todayISO(), end_date: todayISO(), reason: '' });
+    const days = form.start_date && form.end_date && form.end_date >= form.start_date
+        ? Math.round((new Date(form.end_date) - new Date(form.start_date)) / 86400000) + 1 : 0;
 
-    useEffect(() => {
-        if (employeeId) {
-            Promise.all([
-                fetch(`/api/hr/attendance?employee_id=${employeeId}`).then(r => r.json()),
-                fetch(`/api/hr/reviews?employee_id=${employeeId}`).then(r => r.json())
-            ])
-            .then(([attData, revData]) => {
-                setAttendance(attData);
-                setReviews(revData);
-                setLoading(false);
-            })
-            .catch(err => {
-                console.error(err);
-                setLoading(false);
-            });
-        }
-    }, [employeeId]);
-
-    if (loading) return <div style={{ color: 'var(--text-muted)' }}>Loading records...</div>;
+    const submit = async () => {
+        if (await run(() => api.post('/api/hr/leaves', { ...form, employee_id: employeeId }), 'Leave request sent to your manager')) { onSaved(); onClose(); }
+    };
 
     return (
-        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '2rem' }}>
-            {/* Attendance Log */}
-            <div style={{ background: 'var(--bg-card)', border: '1px solid var(--border-color)' }}>
-                <div style={{ padding: '1rem', borderBottom: '1px solid var(--border-color)', background: 'var(--bg-subtle)' }}>
-                    <h3 style={{ fontFamily: 'var(--font-mono)', fontWeight: 800, margin: 0, display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-                        <CalendarCheck className="w-5 h-5 text-primary" /> Recent Attendance
-                    </h3>
-                </div>
-                <div style={{ padding: '1rem' }}>
-                    {attendance.length === 0 ? <p style={{ color: 'var(--text-muted)' }}>No records.</p> : (
-                        <ul style={{ listStyle: 'none', padding: 0, margin: 0, display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
-                            {attendance.slice(0, 5).map(att => (
-                                <li key={att.attendance_id} style={{ display: 'flex', justifyContent: 'space-between', padding: '0.5rem', border: '1px solid var(--border-color)', fontFamily: 'var(--font-mono)', fontSize: '0.85rem' }}>
-                                    <span>{att.date}</span>
-                                    <span style={{ color: att.status === 'Present' ? 'var(--success)' : 'var(--warning)' }}>{att.status}</span>
-                                    <span style={{ color: 'var(--text-muted)' }}>{att.check_in || '--:--'} - {att.check_out || '--:--'}</span>
-                                </li>
-                            ))}
-                        </ul>
-                    )}
-                </div>
+        <FormModal title="Request time off" subtitle={days ? `${days} calendar day${days > 1 ? 's' : ''}` : 'End date must be on or after the start date'} onClose={onClose} onSubmit={submit} submitLabel="Submit request">
+            <div className="form-grid">
+                <Field label="Leave type" required span>
+                    <select className="form-select" value={form.leave_type} onChange={bind('leave_type')}>{LEAVE_TYPES.map(t => <option key={t}>{t}</option>)}</select>
+                </Field>
+                <Field label="From" required><input type="date" className="form-input" value={form.start_date} onChange={bind('start_date')} required /></Field>
+                <Field label="To" required><input type="date" className="form-input" min={form.start_date} value={form.end_date} onChange={bind('end_date')} required /></Field>
+                <Field label="Reason" span><textarea className="form-textarea" value={form.reason} onChange={bind('reason')} placeholder="Optional note for your manager" /></Field>
             </div>
+        </FormModal>
+    );
+}
 
-            {/* Performance Reviews */}
-            <div style={{ background: 'var(--bg-card)', border: '1px solid var(--border-color)' }}>
-                <div style={{ padding: '1rem', borderBottom: '1px solid var(--border-color)', background: 'var(--bg-subtle)' }}>
-                    <h3 style={{ fontFamily: 'var(--font-mono)', fontWeight: 800, margin: 0, display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-                        <Star className="w-5 h-5 text-primary" /> Performance Reviews
-                    </h3>
-                </div>
-                <div style={{ padding: '1rem' }}>
-                    {reviews.length === 0 ? <p style={{ color: 'var(--text-muted)' }}>No reviews.</p> : (
-                        <ul style={{ listStyle: 'none', padding: 0, margin: 0, display: 'flex', flexDirection: 'column', gap: '1rem' }}>
-                            {reviews.map(rev => (
-                                <li key={rev.review_id} style={{ padding: '1rem', border: '1px solid var(--border-color)' }}>
-                                    <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '0.5rem', fontFamily: 'var(--font-mono)' }}>
-                                        <span style={{ color: 'var(--primary)', fontWeight: 800 }}>Rating: {rev.rating}/5.0</span>
-                                        <span style={{ color: 'var(--text-muted)', fontSize: '0.8rem' }}>{rev.review_date}</span>
-                                    </div>
-                                    <p style={{ margin: 0, fontSize: '0.9rem', color: 'var(--text-main)', lineHeight: 1.5 }}>
-                                        "{rev.comments}"
-                                    </p>
-                                    <div style={{ marginTop: '0.5rem', fontSize: '0.75rem', color: 'var(--text-muted)', fontFamily: 'var(--font-mono)' }}>
-                                        Reviewer: {rev.reviewer_first_name} {rev.reviewer_last_name}
-                                    </div>
-                                </li>
-                            ))}
-                        </ul>
-                    )}
+// ============================================================
+// Attendance
+// ============================================================
+function EmployeeAttendance({ employeeId }) {
+    const attendance = useFetch(`/api/hr/attendance?employee_id=${employeeId}`, []);
+    const count = (s) => attendance.data.filter(a => a.status === s).length;
+
+    return (
+        <div className="stack">
+            <div className="grid-2">
+                <CheckInCard employeeId={employeeId} />
+                <div className="stats-grid" style={{ gridTemplateColumns: 'repeat(3, minmax(0, 1fr))' }}>
+                    <StatCard label="Present" value={count('Present')} tone="success" />
+                    <StatCard label="Late" value={count('Late')} tone="warning" />
+                    <StatCard label="Absent" value={count('Absent')} tone="danger" />
                 </div>
             </div>
+            <Panel title="Attendance history" subtitle="Last 60 records" icon={Clock} flush>
+                <ErrorNote message={attendance.error} onRetry={attendance.reload} />
+                {attendance.loading ? <Loading /> : attendance.data.length === 0 ? (
+                    <EmptyState icon={Clock} title="No attendance yet" hint="Use Check in to record your first day." />
+                ) : (
+                    <div className="table-container">
+                        <table className="data-table compact">
+                            <thead><tr><th>Date</th><th>Check in</th><th>Check out</th><th className="num">Hours</th><th>Status</th></tr></thead>
+                            <tbody>
+                                {attendance.data.map(a => (
+                                    <tr key={a.attendance_id}>
+                                        <td>{fmtDate(a.date)}</td>
+                                        <td className="mono">{a.check_in || '—'}</td>
+                                        <td className="mono">{a.check_out || '—'}</td>
+                                        <td className="num">{hoursBetween(a.check_in, a.check_out)}</td>
+                                        <td><StatusBadge status={a.status} /></td>
+                                    </tr>
+                                ))}
+                            </tbody>
+                        </table>
+                    </div>
+                )}
+            </Panel>
         </div>
     );
 }
 
+// ============================================================
+// Payroll
+// ============================================================
 function EmployeePayroll({ employeeId }) {
-    const [payroll, setPayroll] = useState([]);
-    const [loading, setLoading] = useState(true);
-
-    useEffect(() => {
-        if (employeeId) {
-            fetch(`/api/dashboard/employee/payroll?employee_id=${employeeId}`)
-                .then(res => res.json())
-                .then(data => { setPayroll(data); setLoading(false); })
-                .catch(err => { console.error(err); setLoading(false); });
-        }
-    }, [employeeId]);
-
-    if (loading) return <div style={{ color: 'var(--text-muted)' }}>Loading payroll...</div>;
+    const { user } = useAuth();
+    const payroll = useFetch(`/api/dashboard/employee/payroll?employee_id=${employeeId}`, []);
+    const [slip, setSlip] = useState(null);
+    const ytd = payroll.data.filter(p => p.status === 'Paid' && p.year === new Date().getFullYear()).reduce((s, p) => s + p.net_salary, 0);
 
     return (
-        <div style={{ background: 'var(--bg-card)', border: '1px solid var(--border-color)' }}>
-            <table style={{ width: '100%', borderCollapse: 'collapse', textAlign: 'left' }}>
-                <thead style={{ background: 'var(--bg-subtle)', fontFamily: 'var(--font-mono)', fontSize: '0.8rem', textTransform: 'uppercase', color: 'var(--text-muted)' }}>
-                    <tr>
-                        <th style={{ padding: '1rem', borderBottom: '1px solid var(--border-color)' }}>Month/Year</th>
-                        <th style={{ padding: '1rem', borderBottom: '1px solid var(--border-color)' }}>Basic Salary</th>
-                        <th style={{ padding: '1rem', borderBottom: '1px solid var(--border-color)' }}>Net Salary</th>
-                        <th style={{ padding: '1rem', borderBottom: '1px solid var(--border-color)' }}>Payment Date</th>
-                        <th style={{ padding: '1rem', borderBottom: '1px solid var(--border-color)' }}>Status</th>
-                    </tr>
-                </thead>
-                <tbody>
-                    {payroll.length === 0 ? (
-                        <tr><td colSpan="5" style={{ padding: '2rem', textAlign: 'center', color: 'var(--text-muted)', fontFamily: 'var(--font-mono)' }}>No payroll records found.</td></tr>
-                    ) : payroll.map(p => (
-                        <tr key={p.payroll_id} style={{ borderBottom: '1px solid var(--border-color)' }}>
-                            <td style={{ padding: '1rem', fontWeight: 800, color: 'var(--text-main)', fontFamily: 'var(--font-mono)' }}>
-                                {p.month}/{p.year}
-                            </td>
-                            <td style={{ padding: '1rem', fontFamily: 'var(--font-mono)' }}>${p.basic_salary}</td>
-                            <td style={{ padding: '1rem', fontFamily: 'var(--font-mono)', color: 'var(--primary)' }}>${p.net_salary}</td>
-                            <td style={{ padding: '1rem', color: 'var(--text-muted)' }}>{p.payment_date || '-'}</td>
-                            <td style={{ padding: '1rem' }}>
-                                <span style={{ 
-                                    padding: '0.25rem 0.5rem', fontSize: '0.75rem', fontFamily: 'var(--font-mono)', textTransform: 'uppercase',
-                                    color: p.status === 'Paid' ? 'var(--success)' : 'var(--warning)',
-                                    border: `1px solid ${p.status === 'Paid' ? 'var(--success)' : 'var(--warning)'}`
-                                }}>
-                                    {p.status}
-                                </span>
-                            </td>
-                        </tr>
-                    ))}
-                </tbody>
-            </table>
+        <div className="stack">
+            <div className="stats-grid">
+                <StatCard label="Net pay this year" value={fmtMoney(ytd)} meta="Paid payslips only" icon={Wallet} tone="success" />
+                <StatCard label="Payslips" value={payroll.data.length} meta={`${payroll.data.filter(p => p.status !== 'Paid').length} pending`} icon={Wallet} />
+            </div>
+            <Panel title="Payslips" icon={Wallet} flush>
+                {payroll.loading ? <Loading /> : payroll.data.length === 0 ? (
+                    <EmptyState icon={Wallet} title="No payslips yet" hint="Payslips appear once HR runs payroll." />
+                ) : (
+                    <div className="table-container">
+                        <table className="data-table">
+                            <thead><tr><th>Period</th><th className="num">Basic</th><th className="num">Bonus</th><th className="num">Deductions</th><th className="num">Net pay</th><th>Paid on</th><th>Status</th><th /></tr></thead>
+                            <tbody>
+                                {payroll.data.map(p => (
+                                    <tr key={p.payroll_id}>
+                                        <td className="strong">{MONTHS[p.month - 1]} {p.year}</td>
+                                        <td className="num">{fmtMoney(p.basic_salary, 2)}</td>
+                                        <td className="num text-success">{p.bonus ? `+${fmtMoney(p.bonus, 2)}` : '—'}</td>
+                                        <td className="num text-danger">{p.deductions ? `−${fmtMoney(p.deductions, 2)}` : '—'}</td>
+                                        <td className="num strong">{fmtMoney(p.net_salary, 2)}</td>
+                                        <td className="text-sm muted">{fmtDate(p.payment_date)}</td>
+                                        <td><StatusBadge status={p.status} /></td>
+                                        <td className="right"><button className="btn btn-ghost btn-sm" onClick={() => setSlip(p)}>View</button></td>
+                                    </tr>
+                                ))}
+                            </tbody>
+                        </table>
+                    </div>
+                )}
+            </Panel>
+
+            {slip && (
+                <Modal title={`Payslip · ${MONTHS[slip.month - 1]} ${slip.year}`} subtitle={`${user.name} · ${code('EMP', employeeId)}`} onClose={() => setSlip(null)} size="sm"
+                    footer={<button className="btn btn-outline" onClick={() => window.print()}><Printer size={15} /> Print</button>}>
+                    <div className="modal-body">
+                        <table className="data-table compact">
+                            <tbody>
+                                <tr><td>Basic salary</td><td className="num">{fmtMoney(slip.basic_salary, 2)}</td></tr>
+                                <tr><td>Bonus</td><td className="num text-success">+{fmtMoney(slip.bonus || 0, 2)}</td></tr>
+                                <tr><td>Deductions</td><td className="num text-danger">−{fmtMoney(slip.deductions || 0, 2)}</td></tr>
+                                <tr><td className="strong">Net pay</td><td className="num strong" style={{ fontSize: '1rem' }}>{fmtMoney(slip.net_salary, 2)}</td></tr>
+                            </tbody>
+                        </table>
+                        <div className="row-between text-sm muted" style={{ marginTop: '1rem' }}>
+                            <StatusBadge status={slip.status} />
+                            <span>{slip.payment_date ? `Paid ${fmtDate(slip.payment_date)}` : 'Not yet paid'}</span>
+                        </div>
+                    </div>
+                </Modal>
+            )}
         </div>
     );
 }
 
+// ============================================================
+// Assets
+// ============================================================
 function EmployeeAssets({ employeeId }) {
-    const [assets, setAssets] = useState([]);
-    const [loading, setLoading] = useState(true);
-
-    useEffect(() => {
-        if (employeeId) {
-            fetch(`/api/dashboard/employee/assets?employee_id=${employeeId}`)
-                .then(res => res.json())
-                .then(data => { setAssets(data); setLoading(false); })
-                .catch(err => { console.error(err); setLoading(false); });
-        }
-    }, [employeeId]);
-
-    if (loading) return <div style={{ color: 'var(--text-muted)' }}>Loading assets...</div>;
+    const assets = useFetch(`/api/dashboard/employee/assets?employee_id=${employeeId}`, []);
+    if (assets.loading) return <Loading />;
+    if (assets.data.length === 0) return <div className="card"><EmptyState icon={Laptop} title="No assets assigned" hint="Equipment issued to you by IT will be listed here." /></div>;
 
     return (
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(300px, 1fr))', gap: '1.5rem' }}>
-            {assets.length === 0 ? (
-                <div style={{ gridColumn: '1 / -1', padding: '3rem', textAlign: 'center', border: '1px solid var(--border-color)', background: 'var(--bg-card)' }}>
-                    <Laptop className="w-8 h-8 mx-auto mb-4" style={{ color: 'var(--text-muted)', opacity: 0.5 }} />
-                    <p style={{ fontFamily: 'var(--font-mono)', color: 'var(--text-muted)', textTransform: 'uppercase' }}>No assets assigned to you.</p>
-                </div>
-            ) : assets.map(asset => (
-                <div key={asset.asset_id} style={{ background: 'var(--bg-card)', border: '1px solid var(--border-color)', padding: '1.5rem' }}>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: '1rem', marginBottom: '1rem' }}>
-                        <div style={{ padding: '0.75rem', background: 'var(--bg-subtle)', borderRadius: '4px' }}>
-                            <Laptop className="w-6 h-6 text-primary" />
-                        </div>
-                        <div>
-                            <h3 style={{ fontFamily: 'var(--font-mono)', margin: 0, color: 'var(--text-main)', fontSize: '1.1rem', fontWeight: 800 }}>{asset.name}</h3>
-                            <p style={{ margin: 0, color: 'var(--text-muted)', fontSize: '0.85rem', textTransform: 'uppercase' }}>{asset.category}</p>
+        <div className="grid-cards">
+            {assets.data.map(a => (
+                <div key={a.asset_id} className="card stack-sm">
+                    <div className="row">
+                        <div className="stat-icon tone-primary"><Laptop size={18} /></div>
+                        <div className="grow">
+                            <div className="strong">{a.name}</div>
+                            <div className="text-sm muted">{a.category}</div>
                         </div>
                     </div>
-                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderTop: '1px solid var(--border-color)', paddingTop: '1rem', marginTop: '1rem' }}>
-                        <span style={{ fontSize: '0.8rem', color: 'var(--text-muted)' }}>Acquired: {asset.purchase_date || 'N/A'}</span>
-                        <span style={{ 
-                            fontSize: '0.75rem', fontFamily: 'var(--font-mono)', textTransform: 'uppercase', padding: '0.2rem 0.5rem',
-                            background: asset.status === 'In Use' ? 'rgba(46, 125, 50, 0.1)' : 'transparent',
-                            color: asset.status === 'In Use' ? 'var(--success)' : 'var(--text-muted)',
-                            border: `1px solid ${asset.status === 'In Use' ? 'var(--success)' : 'var(--border-color)'}`
-                        }}>
-                            {asset.status}
-                        </span>
+                    <div className="row-between text-sm" style={{ borderTop: '1px solid var(--border-color)', paddingTop: '0.6rem', marginTop: '0.3rem' }}>
+                        <span className="muted mono">{code('AST', a.asset_id)} · {fmtDate(a.purchase_date)}</span>
+                        <StatusBadge status={a.status} />
                     </div>
                 </div>
             ))}
@@ -436,127 +434,61 @@ function EmployeeAssets({ employeeId }) {
     );
 }
 
+// ============================================================
+// Profile
+// ============================================================
 function EmployeeProfile({ employeeId }) {
-    const [profile, setProfile] = useState(null);
-    const [loading, setLoading] = useState(true);
-    const [editMode, setEditMode] = useState(false);
-    const [formData, setFormData] = useState({});
+    const { user } = useAuth();
+    const profile = useFetch(`/api/dashboard/employee/profile?employee_id=${employeeId}`, null);
+    const [editing, setEditing] = useState(false);
 
-    const fetchProfile = () => {
-        if (employeeId) {
-            setLoading(true);
-            fetch(`/api/dashboard/employee/profile?employee_id=${employeeId}`)
-                .then(res => res.json())
-                .then(data => { 
-                    setProfile(data); 
-                    setFormData(data);
-                    setLoading(false); 
-                })
-                .catch(err => { console.error(err); setLoading(false); });
-        }
-    };
+    if (profile.loading) return <Loading />;
+    const p = profile.data;
+    if (!p) return <ErrorNote message="Profile not found" />;
 
-    useEffect(() => {
-        fetchProfile();
-    }, [employeeId]);
-
-    const handleSubmit = async (e) => {
-        e.preventDefault();
-        try {
-            const res = await fetch('/api/dashboard/employee/profile', {
-                method: 'PUT',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ ...formData, employee_id: employeeId })
-            });
-            if (res.ok) {
-                setEditMode(false);
-                fetchProfile();
-            }
-        } catch (err) {
-            console.error(err);
-        }
-    };
-
-    if (loading) return <div style={{ color: 'var(--text-muted)' }}>Loading profile...</div>;
-    if (!profile) return <div style={{ color: 'var(--text-muted)' }}>Profile not found.</div>;
+    const item = (label, value) => <div><div className="kv-label">{label}</div><div className="kv-value">{value || '—'}</div></div>;
 
     return (
-        <div style={{ background: 'var(--bg-card)', border: '1px solid var(--border-color)', padding: '2rem', maxWidth: '800px' }}>
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '2rem', borderBottom: '1px solid var(--border-color)', paddingBottom: '1rem' }}>
-                <h3 style={{ fontFamily: 'var(--font-mono)', fontWeight: 800, margin: 0, fontSize: '1.5rem', color: 'var(--primary)' }}>Personal Information</h3>
-                {!editMode && (
-                    <button onClick={() => setEditMode(true)} className="btn btn-primary" style={{ padding: '0.5rem 1rem' }}>Edit Profile</button>
-                )}
+        <Panel title="Personal information" icon={User} actions={<button className="btn btn-outline btn-sm" onClick={() => setEditing(true)}><Pencil size={14} /> Edit</button>}>
+            <div className="row" style={{ gap: '1rem', marginBottom: '1.5rem' }}>
+                <Avatar name={`${p.first_name} ${p.last_name}`} size="lg" />
+                <div>
+                    <div className="strong" style={{ fontSize: '1.15rem' }}>{p.first_name} {p.last_name}</div>
+                    <div className="muted text-sm">{user.email} · <span className="mono">{code('EMP', p.employee_id)}</span></div>
+                </div>
+            </div>
+            <div className="kv-grid">
+                {item('Phone', p.phone)}
+                {item('Date of birth', fmtDate(p.dob))}
+                {item('Gender', p.gender)}
+                {item('Joined', fmtDate(p.joining_date))}
+                {item('Annual salary', fmtMoney(p.salary))}
+                {item('Address', p.address)}
             </div>
 
-            {editMode ? (
-                <form onSubmit={handleSubmit} style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1.5rem' }}>
-                    <div>
-                        <label className="form-label">First Name</label>
-                        <input type="text" className="form-input" value={profile.first_name} disabled style={{ opacity: 0.7 }} />
-                    </div>
-                    <div>
-                        <label className="form-label">Last Name</label>
-                        <input type="text" className="form-input" value={profile.last_name} disabled style={{ opacity: 0.7 }} />
-                    </div>
-                    <div>
-                        <label className="form-label">Phone</label>
-                        <input type="text" className="form-input" value={formData.phone || ''} onChange={e => setFormData({...formData, phone: e.target.value})} />
-                    </div>
-                    <div>
-                        <label className="form-label">Date of Birth</label>
-                        <input type="date" className="form-input" value={formData.dob || ''} onChange={e => setFormData({...formData, dob: e.target.value})} />
-                    </div>
-                    <div>
-                        <label className="form-label">Gender</label>
-                        <select className="form-input" value={formData.gender || ''} onChange={e => setFormData({...formData, gender: e.target.value})}>
-                            <option value="">Select...</option>
-                            <option value="Male">Male</option>
-                            <option value="Female">Female</option>
-                            <option value="Other">Other</option>
-                        </select>
-                    </div>
-                    <div style={{ gridColumn: '1 / -1' }}>
-                        <label className="form-label">Address</label>
-                        <textarea className="form-input" value={formData.address || ''} onChange={e => setFormData({...formData, address: e.target.value})} rows="3"></textarea>
-                    </div>
-                    <div style={{ gridColumn: '1 / -1', display: 'flex', gap: '1rem', justifyContent: 'flex-end', marginTop: '1rem' }}>
-                        <button type="button" onClick={() => { setEditMode(false); setFormData(profile); }} className="btn" style={{ background: 'var(--bg-subtle)', color: 'var(--text-main)' }}>Cancel</button>
-                        <button type="submit" className="btn btn-primary">Save Changes</button>
-                    </div>
-                </form>
-            ) : (
-                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1.5rem', fontFamily: 'var(--font-mono)' }}>
-                    <div>
-                        <div style={{ color: 'var(--text-muted)', fontSize: '0.85rem', textTransform: 'uppercase', marginBottom: '0.25rem' }}>Full Name</div>
-                        <div style={{ fontSize: '1.1rem', color: 'var(--text-main)' }}>{profile.first_name} {profile.last_name}</div>
-                    </div>
-                    <div>
-                        <div style={{ color: 'var(--text-muted)', fontSize: '0.85rem', textTransform: 'uppercase', marginBottom: '0.25rem' }}>Employee ID</div>
-                        <div style={{ fontSize: '1.1rem', color: 'var(--text-main)' }}>EMP-{profile.employee_id}</div>
-                    </div>
-                    <div>
-                        <div style={{ color: 'var(--text-muted)', fontSize: '0.85rem', textTransform: 'uppercase', marginBottom: '0.25rem' }}>Phone</div>
-                        <div style={{ fontSize: '1.1rem', color: 'var(--text-main)' }}>{profile.phone || 'N/A'}</div>
-                    </div>
-                    <div>
-                        <div style={{ color: 'var(--text-muted)', fontSize: '0.85rem', textTransform: 'uppercase', marginBottom: '0.25rem' }}>Date of Birth</div>
-                        <div style={{ fontSize: '1.1rem', color: 'var(--text-main)' }}>{profile.dob || 'N/A'}</div>
-                    </div>
-                    <div>
-                        <div style={{ color: 'var(--text-muted)', fontSize: '0.85rem', textTransform: 'uppercase', marginBottom: '0.25rem' }}>Gender</div>
-                        <div style={{ fontSize: '1.1rem', color: 'var(--text-main)' }}>{profile.gender || 'N/A'}</div>
-                    </div>
-                    <div>
-                        <div style={{ color: 'var(--text-muted)', fontSize: '0.85rem', textTransform: 'uppercase', marginBottom: '0.25rem' }}>Joining Date</div>
-                        <div style={{ fontSize: '1.1rem', color: 'var(--text-main)' }}>{profile.joining_date || 'N/A'}</div>
-                    </div>
-                    <div style={{ gridColumn: '1 / -1' }}>
-                        <div style={{ color: 'var(--text-muted)', fontSize: '0.85rem', textTransform: 'uppercase', marginBottom: '0.25rem' }}>Address</div>
-                        <div style={{ fontSize: '1.1rem', color: 'var(--text-main)' }}>{profile.address || 'N/A'}</div>
-                    </div>
-                </div>
-            )}
-        </div>
+            {editing && <ProfileModal profile={p} onClose={() => setEditing(false)} onSaved={profile.reload} />}
+        </Panel>
+    );
+}
+
+function ProfileModal({ profile, onClose, onSaved }) {
+    const run = useAction();
+    const [form, bind] = useForm({ phone: profile.phone || '', dob: profile.dob || '', gender: profile.gender || '', address: profile.address || '' });
+    const submit = async () => {
+        if (await run(() => api.put('/api/dashboard/employee/profile', { ...form, employee_id: profile.employee_id }), 'Profile updated')) { onSaved(); onClose(); }
+    };
+    return (
+        <FormModal title="Edit personal details" subtitle="Name, salary and role are managed by HR." onClose={onClose} onSubmit={submit}>
+            <div className="form-grid">
+                <Field label="Phone"><input className="form-input" value={form.phone} onChange={bind('phone')} /></Field>
+                <Field label="Date of birth"><input type="date" className="form-input" value={form.dob} onChange={bind('dob')} /></Field>
+                <Field label="Gender">
+                    <select className="form-select" value={form.gender} onChange={bind('gender')}>
+                        <option value="">Prefer not to say</option><option>Female</option><option>Male</option><option>Other</option>
+                    </select>
+                </Field>
+                <Field label="Address" span><textarea className="form-textarea" value={form.address} onChange={bind('address')} /></Field>
+            </div>
+        </FormModal>
     );
 }

@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { useAuth } from '../context/AuthContext';
-import { User, Key, ArrowRight, Sparkles, Database } from 'lucide-react';
+import { User, KeyRound, ArrowRight, Database, ShieldCheck, Layers, GitBranch } from 'lucide-react';
+import { Alert, Avatar } from './ui';
 
 export default function EmployeeLogin() {
     const { login, quickUsers } = useAuth();
@@ -22,169 +23,96 @@ export default function EmployeeLogin() {
         }
     };
 
-    const handleQuickSelect = (userObj) => {
-        setUsername(userObj.username);
-        setPassword(userObj.password);
-    };
+    // One demo account per role, so every workspace can be tried quickly
+    const demoAccounts = [];
+    const seenRoles = new Set();
+    quickUsers.forEach(u => {
+        if (!seenRoles.has(u.role_name)) {
+            seenRoles.add(u.role_name);
+            demoAccounts.push(u);
+        }
+    });
 
     return (
-        <div style={{
-            minHeight: '100vh',
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'center',
-            background: 'var(--bg-page)',
-            position: 'relative',
-            overflow: 'hidden'
-        }}>
-            {/* Background design elements */}
-            <div style={{
-                position: 'absolute', top: 0, left: 0, right: 0, bottom: 0,
-                backgroundImage: 'linear-gradient(rgba(204, 255, 0, 0.05) 1px, transparent 1px), linear-gradient(90deg, rgba(204, 255, 0, 0.05) 1px, transparent 1px)',
-                backgroundSize: '40px 40px', zIndex: 0
-            }} />
+        <div className="auth-shell">
+            <aside className="auth-aside">
+                <div className="row" style={{ gap: '0.7rem' }}>
+                    <div className="brand-icon" style={{ background: 'rgba(255,255,255,0.14)' }}><Database size={18} /></div>
+                    <div className="strong" style={{ fontSize: '1.05rem' }}>Enterprise DBMS</div>
+                </div>
 
-            <div style={{
-                position: 'relative', zIndex: 1,
-                background: 'var(--bg-card)',
-                padding: '3rem 2.5rem',
-                border: '1px solid var(--primary)',
-                boxShadow: 'var(--shadow-glow)',
-                width: '100%',
-                maxWidth: '440px',
-            }}>
-                <div style={{ display: 'flex', justifyContent: 'center', marginBottom: '1.5rem' }}>
-                    <div style={{ 
-                        background: 'var(--primary)',
-                        padding: '1rem', display: 'inline-block' 
-                    }}>
-                        <Database className="w-8 h-8" style={{ color: 'var(--primary-text)' }} />
+                <div style={{ maxWidth: 460 }}>
+                    <h1 style={{ fontSize: '2.2rem', lineHeight: 1.15, letterSpacing: '-0.03em', fontWeight: 700, marginBottom: '0.9rem' }}>
+                        One relational database for people, projects and revenue.
+                    </h1>
+                    <p style={{ opacity: 0.8, fontSize: '1rem' }}>
+                        HR, project delivery, CRM and billing workflows backed by 19 normalized SQLite tables with enforced foreign keys and transactional writes.
+                    </p>
+                </div>
+
+                <div className="stack-sm" style={{ opacity: 0.85, fontSize: '0.88rem' }}>
+                    <div className="row"><Layers size={16} /> 19 tables in third normal form</div>
+                    <div className="row"><ShieldCheck size={16} /> ACID transactions with WAL journaling</div>
+                    <div className="row"><GitBranch size={16} /> Role-based workspaces for staff and clients</div>
+                </div>
+            </aside>
+
+            <main className="auth-main">
+                <div className="auth-card">
+                    <h2 style={{ fontSize: '1.5rem', fontWeight: 700, letterSpacing: '-0.02em' }}>Sign in</h2>
+                    <p className="muted" style={{ marginBottom: '1.5rem' }}>Use your work account or pick a demo profile below.</p>
+
+                    <form onSubmit={handleSubmit} className="stack">
+                        {error && <Alert tone="danger">{error}</Alert>}
+
+                        <label className="field">
+                            <span className="form-label">Username or email</span>
+                            <div className="input-icon">
+                                <User size={16} />
+                                <input className="form-input" autoComplete="username" value={username} onChange={e => setUsername(e.target.value)} required autoFocus />
+                            </div>
+                        </label>
+
+                        <label className="field">
+                            <span className="form-label">Password</span>
+                            <div className="input-icon">
+                                <KeyRound size={16} />
+                                <input className="form-input" type="password" autoComplete="current-password" value={password} onChange={e => setPassword(e.target.value)} required />
+                            </div>
+                        </label>
+
+                        <button type="submit" disabled={loading} className="btn btn-primary btn-lg btn-block">
+                            {loading ? 'Signing in…' : <>Sign in <ArrowRight size={16} /></>}
+                        </button>
+                    </form>
+
+                    {demoAccounts.length > 0 && (
+                        <div style={{ marginTop: '1.75rem' }}>
+                            <div className="section-title">Demo accounts</div>
+                            <div className="quick-grid">
+                                {demoAccounts.map(u => (
+                                    <button
+                                        key={u.username}
+                                        type="button"
+                                        className="quick-btn"
+                                        onClick={() => { setUsername(u.username); setPassword(u.password); setError(null); }}
+                                    >
+                                        <Avatar name={u.name} size="sm" />
+                                        <div style={{ minWidth: 0 }}>
+                                            <div className="text-sm strong truncate">{u.name}</div>
+                                            <div className="text-xs muted truncate">{u.role_name}</div>
+                                        </div>
+                                    </button>
+                                ))}
+                            </div>
+                        </div>
+                    )}
+
+                    <div className="text-sm muted" style={{ marginTop: '1.75rem', textAlign: 'center' }}>
+                        System administrator? <a href="/admin">Open the admin terminal</a>
                     </div>
                 </div>
-                
-                <h2 style={{ fontFamily: 'var(--font-mono)', fontSize: '1.75rem', fontWeight: '800', textTransform: 'uppercase', marginBottom: '0.5rem', color: 'var(--primary)', textAlign: 'center' }}>
-                    Employee Login
-                </h2>
-                <p style={{ fontFamily: 'var(--font-mono)', color: 'var(--text-muted)', marginBottom: '2rem', fontSize: '0.85rem', textTransform: 'uppercase', textAlign: 'center' }}>
-                    Enterprise CRM Access System
-                </p>
-
-                {error && (
-                    <div style={{
-                        background: 'rgba(255,0,60,0.1)', border: '1px solid var(--danger)',
-                        color: 'var(--danger)', padding: '0.75rem', fontFamily: 'var(--font-mono)', fontSize: '0.85rem', textTransform: 'uppercase', marginBottom: '1.25rem'
-                    }}>
-                        {error}
-                    </div>
-                )}
-
-                <form onSubmit={handleSubmit} style={{ display: 'flex', flexDirection: 'column', gap: '1.25rem' }}>
-                    <div style={{ position: 'relative' }}>
-                        <User className="w-5 h-5" style={{ 
-                            position: 'absolute', left: '1rem', top: '50%', transform: 'translateY(-50%)', color: 'var(--text-muted)' 
-                        }} />
-                        <input
-                            type="text"
-                            placeholder="Username or Email"
-                            value={username}
-                            onChange={(e) => setUsername(e.target.value)}
-                            required
-                            style={{
-                                width: '100%',
-                                padding: '0.85rem 1rem 0.85rem 2.75rem',
-                                background: 'var(--bg-page)',
-                                border: '1px solid var(--border-color)',
-                                color: 'var(--primary)',
-                                fontFamily: 'var(--font-mono)',
-                                fontSize: '1rem',
-                                outline: 'none',
-                                transition: 'border 0.1s'
-                            }}
-                            onFocus={(e) => e.target.style.borderColor = 'var(--primary)'}
-                            onBlur={(e) => e.target.style.borderColor = 'var(--border-color)'}
-                        />
-                    </div>
-
-                    <div style={{ position: 'relative' }}>
-                        <Key className="w-5 h-5" style={{ 
-                            position: 'absolute', left: '1rem', top: '50%', transform: 'translateY(-50%)', color: 'var(--text-muted)' 
-                        }} />
-                        <input
-                            type="password"
-                            placeholder="Password"
-                            value={password}
-                            onChange={(e) => setPassword(e.target.value)}
-                            required
-                            style={{
-                                width: '100%',
-                                padding: '0.85rem 1rem 0.85rem 2.75rem',
-                                background: 'var(--bg-page)',
-                                border: '1px solid var(--border-color)',
-                                color: 'var(--primary)',
-                                fontFamily: 'var(--font-mono)',
-                                fontSize: '1rem',
-                                outline: 'none',
-                                transition: 'border 0.1s'
-                            }}
-                            onFocus={(e) => e.target.style.borderColor = 'var(--primary)'}
-                            onBlur={(e) => e.target.style.borderColor = 'var(--border-color)'}
-                        />
-                    </div>
-
-                    <button
-                        type="submit"
-                        disabled={loading}
-                        style={{
-                            display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '0.5rem',
-                            background: 'var(--primary)', color: 'var(--primary-text)', padding: '0.875rem',
-                            fontFamily: 'var(--font-mono)', fontWeight: '800', fontSize: '1rem', textTransform: 'uppercase',
-                            border: '1px solid var(--primary)', cursor: loading ? 'not-allowed' : 'pointer',
-                            opacity: loading ? 0.7 : 1, transition: 'all 0.1s', marginTop: '0.5rem'
-                        }}
-                        onMouseEnter={(e) => { if(!loading) e.target.style.boxShadow = 'var(--shadow-glow)' }}
-                        onMouseLeave={(e) => { if(!loading) e.target.style.boxShadow = 'none' }}
-                    >
-                        {loading ? 'Authenticating...' : 'Sign In'}
-                        {!loading && <ArrowRight className="w-4 h-4" />}
-                    </button>
-                </form>
-
-                {/* Quick Select Demo Accounts */}
-                <div style={{ marginTop: '2rem', paddingTop: '1.5rem', borderTop: '1px solid var(--border-color)' }}>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', fontFamily: 'var(--font-mono)', fontSize: '0.8rem', fontWeight: 800, textTransform: 'uppercase', color: 'var(--primary)', marginBottom: '1rem' }}>
-                        <Sparkles className="w-4 h-4" />
-                        <span>Quick Demo Logins</span>
-                    </div>
-                    <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0.75rem' }}>
-                        {quickUsers.filter(u => u.role_name !== 'Admin').slice(0, 4).map((u, i) => (
-                            <button
-                                key={i}
-                                type="button"
-                                onClick={() => handleQuickSelect(u)}
-                                style={{
-                                    display: 'flex', flexDirection: 'column', alignItems: 'flex-start', padding: '0.75rem',
-                                    background: 'transparent', border: '1px solid var(--border-color)',
-                                    fontFamily: 'var(--font-mono)', cursor: 'pointer', transition: 'all 0.1s',
-                                    textAlign: 'left'
-                                }}
-                                onMouseEnter={(e) => { e.currentTarget.style.borderColor = 'var(--primary)'; e.currentTarget.style.backgroundColor = 'var(--bg-hover)' }}
-                                onMouseLeave={(e) => { e.currentTarget.style.borderColor = 'var(--border-color)'; e.currentTarget.style.backgroundColor = 'transparent' }}
-                            >
-                                <span style={{ fontWeight: 800, fontSize: '0.85rem', color: 'var(--text-main)', textTransform: 'uppercase' }}>{u.name}</span>
-                                <span style={{ fontSize: '0.7rem', color: 'var(--text-muted)' }}>{u.role_name}</span>
-                            </button>
-                        ))}
-                    </div>
-                </div>
-                
-                <div style={{ marginTop: '2rem', paddingTop: '1.5rem', borderTop: '1px solid var(--border-color)', fontFamily: 'var(--font-mono)', fontSize: '0.75rem', textTransform: 'uppercase', textAlign: 'center' }}>
-                    <a href="/admin" style={{ color: 'var(--text-muted)', textDecoration: 'none', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '0.25rem' }}
-                       onMouseEnter={(e) => e.target.style.color = 'var(--primary)'}
-                       onMouseLeave={(e) => e.target.style.color = 'var(--text-muted)'}>
-                        Switch to Admin Terminal
-                    </a>
-                </div>
-            </div>
+            </main>
         </div>
     );
 }

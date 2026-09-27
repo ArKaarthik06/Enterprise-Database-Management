@@ -13,7 +13,8 @@ router.get('/', async (req, res) => {
             SELECT notification_id, title, message, is_read, created_at
             FROM notifications
             WHERE user_id = ?
-            ORDER BY created_at DESC
+            ORDER BY created_at DESC, notification_id DESC
+            LIMIT 50
         `;
         const notifications = queryAll(db, sql, [userId]);
         res.json(notifications);
@@ -31,6 +32,31 @@ router.patch('/:id/read', async (req, res) => {
         const sql = `UPDATE notifications SET is_read = 1 WHERE notification_id = ?`;
         runQuery(db, sql, [notificationId]);
         res.json({ message: 'Notification marked as read' });
+    } catch (err) {
+        res.status(500).json({ error: err.message });
+    }
+});
+
+// Mark every notification for a user as read
+router.patch('/read-all', async (req, res) => {
+    const { user_id } = req.body;
+    if (!user_id) return res.status(400).json({ error: 'User ID required' });
+
+    try {
+        const db = await getDb();
+        runQuery(db, `UPDATE notifications SET is_read = 1 WHERE user_id = ? AND is_read = 0`, [user_id]);
+        res.json({ message: 'All notifications marked as read' });
+    } catch (err) {
+        res.status(500).json({ error: err.message });
+    }
+});
+
+// Dismiss a notification
+router.delete('/:id', async (req, res) => {
+    try {
+        const db = await getDb();
+        runQuery(db, `DELETE FROM notifications WHERE notification_id = ?`, [req.params.id]);
+        res.json({ message: 'Notification deleted' });
     } catch (err) {
         res.status(500).json({ error: err.message });
     }

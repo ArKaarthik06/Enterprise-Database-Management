@@ -1,11 +1,12 @@
 import React, { useState } from 'react';
-import { AuthProvider } from './context/AuthContext';
+import { BarChart3, Table, Building2, Users, Target, UserRound } from 'lucide-react';
+import { AuthProvider, useAuth } from './context/AuthContext';
+import { ToastProvider } from './components/ui';
 import Navbar from './components/Navbar';
 import HeroBanner from './components/HeroBanner';
 import TableViewer from './components/TableViewer';
 import QueryConsole from './components/QueryConsole';
 import AnalyticsCharts from './components/AnalyticsCharts';
-import AuthModal from './components/AuthModal';
 import ERDiagramModal from './components/ERDiagramModal';
 import ClientApp from './components/ClientApp';
 import AdminLogin from './components/AdminLogin';
@@ -13,146 +14,106 @@ import EmployeeLogin from './components/EmployeeLogin';
 import ManagerDashboard from './components/ManagerDashboard';
 import EmployeeDashboard from './components/EmployeeDashboard';
 import CRMDashboard from './components/CRMDashboard';
-import { Database } from 'lucide-react';
-import { useAuth } from './context/AuthContext';
+import HRDashboard from './components/HRDashboard';
+
+const ADMIN_ROLES = ['Admin', 'SuperAdmin'];
+
+// Which workspaces each role can open. Anyone with an employee record also gets
+// "My workspace" so managers can request leave, check in and see their payslips too.
+function navFor(user) {
+    const role = user.role;
+    const isAdmin = ADMIN_ROLES.includes(role);
+    const hasEmployee = Boolean(user.employee_id);
+    const tabs = [];
+
+    if (isAdmin) {
+        tabs.push({ id: 'overview', label: 'Overview', icon: BarChart3 });
+        tabs.push({ id: 'data', label: 'Data explorer', icon: Table });
+    }
+    if (isAdmin || role === 'HR Manager') tabs.push({ id: 'people', label: 'People & org', icon: Building2 });
+    // Managers by role, plus any employee who has people reporting to them (e.g. a tech lead)
+    if (hasEmployee && (role !== 'Employee' || user.report_count > 0)) tabs.push({ id: 'team', label: 'My team', icon: Users });
+    if (isAdmin || role === 'HR Manager' || role === 'Project Manager') tabs.push({ id: 'crm', label: 'CRM', icon: Target });
+    if (hasEmployee) tabs.push({ id: 'me', label: 'My workspace', icon: UserRound });
+    return tabs;
+}
 
 function AppContent() {
     const { user } = useAuth();
-    const [activeTab, setActiveTab] = useState('tables'); // 'tables' | 'charts'
+    const [activeTab, setActiveTab] = useState(null);
     const [isERDiagramOpen, setIsERDiagramOpen] = useState(false);
 
     if (user?.role === 'Client') {
         return <ClientApp />;
     }
 
-    if (window.location.pathname === '/admin' && user?.role !== 'SuperAdmin' && user?.role !== 'Admin') {
-        return <AdminLogin onLoginSuccess={() => window.location.reload()} />;
+    if (window.location.pathname === '/admin' && !ADMIN_ROLES.includes(user?.role)) {
+        return <AdminLogin />;
     }
 
-    if (!user && window.location.pathname !== '/admin') {
+    if (!user) {
         return <EmployeeLogin />;
     }
 
-    const isAdmin = user?.role === 'SuperAdmin' || user?.role === 'Admin';
-    const isEmployee = user?.role === 'Employee';
-    
-    // Default routing
-    let currentTab = activeTab;
-    if (!isAdmin && activeTab === 'tables') {
-        currentTab = isEmployee ? 'employee-dashboard' : 'manager-dashboard';
-    }
+    const tabs = navFor(user);
+    const current = tabs.some(t => t.id === activeTab) ? activeTab : tabs[0]?.id;
 
-    const handleExploreClick = () => {
-        setActiveTab('tables');
-        window.scrollTo({ top: 380, behavior: 'smooth' });
-    };
-
-    const handleRunQueryClick = () => {
-        setActiveTab('tables');
-        setTimeout(() => {
-            const querySec = document.getElementById('query-console-section');
-            if (querySec) {
-                querySec.scrollIntoView({ behavior: 'smooth' });
-            }
-        }, 100);
+    const goToData = (anchor) => {
+        setActiveTab('data');
+        if (anchor) setTimeout(() => document.getElementById(anchor)?.scrollIntoView({ behavior: 'smooth' }), 80);
     };
 
     return (
         <div className="app-container">
-            
-            {/* Top Navigation */}
-            <Navbar 
-                activeTab={currentTab} 
-                setActiveTab={setActiveTab} 
-                onOpenERDiagram={() => setIsERDiagramOpen(true)} 
+            <Navbar
+                tabs={tabs}
+                activeTab={current}
+                setActiveTab={setActiveTab}
+                onOpenERDiagram={() => setIsERDiagramOpen(true)}
             />
 
-            {/* Main Content Area */}
-            <main className="main-content">
-                
-                {/* Hero Banner (Only for Admins on tables or charts tab) */}
-                {isAdmin && (currentTab === 'charts' || currentTab === 'tables') && (
-                <HeroBanner 
-                    onExploreClick={handleExploreClick}
-                    onRunQueryClick={handleRunQueryClick}
-                    onOpenERDiagram={() => setIsERDiagramOpen(true)}
-                />
-                )}
+            <main className="main-content" key={current}>
+                <div className="animate-fade-in">
+                    {current === 'overview' && (
+                        <div className="page">
+                            <HeroBanner
+                                onExploreClick={() => goToData()}
+                                onRunQueryClick={() => goToData('query-console-section')}
+                                onOpenERDiagram={() => setIsERDiagramOpen(true)}
+                            />
+                            <AnalyticsCharts />
+                        </div>
+                    )}
 
-                {/* Tab 1: Data Explorer & SQL Query Terminal (Only for Admins) */}
-                {currentTab === 'tables' && isAdmin && (
-                    <div style={{ display: 'flex', flexDirection: 'column', gap: '2rem' }} className="animate-fade-in">
-                        <TableViewer />
-                        <QueryConsole />
-                    </div>
-                )}
+                    {current === 'data' && (
+                        <div className="page">
+                            <TableViewer />
+                            <QueryConsole />
+                        </div>
+                    )}
 
-                {/* Manager Dashboard */}
-                {currentTab === 'manager-dashboard' && (
-                    <div className="animate-fade-in">
-                        <ManagerDashboard />
-                    </div>
-                )}
+                    {current === 'people' && <HRDashboard />}
+                    {current === 'team' && <ManagerDashboard />}
+                    {current === 'crm' && <CRMDashboard />}
+                    {current === 'me' && <EmployeeDashboard />}
 
-                {/* Employee Dashboard */}
-                {currentTab === 'employee-dashboard' && (
-                    <div className="animate-fade-in">
-                        <EmployeeDashboard />
-                    </div>
-                )}
-
-                {/* CRM Dashboard */}
-                {currentTab === 'crm' && (
-                    <div className="animate-fade-in">
-                        <CRMDashboard />
-                    </div>
-                )}
-
-                {/* Tab 2: Analytics & Recharts (Only for Admins) */}
-                {currentTab === 'charts' && isAdmin && (
-                    <div className="animate-fade-in">
-                        <AnalyticsCharts />
-                    </div>
-                )}
-
+                    {tabs.length === 0 && (
+                        <div className="card">This account has no workspaces assigned. Ask an administrator to link it to an employee record.</div>
+                    )}
+                </div>
             </main>
 
-            {/* Modals */}
-            <AuthModal />
-            <ERDiagramModal 
-                isOpen={isERDiagramOpen} 
-                onClose={() => setIsERDiagramOpen(false)} 
+            <ERDiagramModal
+                isOpen={isERDiagramOpen}
+                onClose={() => setIsERDiagramOpen(false)}
             />
 
-            {/* Clean Footer */}
-            <footer style={{
-                backgroundColor: 'var(--bg-subtle)',
-                borderTop: '1px solid var(--border-color)',
-                padding: '1.5rem 1rem',
-                marginTop: 'auto',
-                fontFamily: 'var(--font-mono)',
-                fontSize: '0.75rem',
-                textTransform: 'uppercase',
-                color: 'var(--text-muted)'
-            }}>
-                <div style={{
-                    maxWidth: '1280px',
-                    margin: '0 auto',
-                    display: 'flex',
-                    flexWrap: 'wrap',
-                    alignItems: 'center',
-                    justifyContent: 'space-between',
-                    gap: '1rem'
-                }}>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-                        <Database className="w-4 h-4" style={{ color: 'var(--primary)' }} />
-                        <span style={{ fontWeight: 800, color: 'var(--primary)' }}>ENTERPRISE DBMS PLATFORM</span>
-                        <span>• RELATIONAL SQLITE ENGINE</span>
-                    </div>
-                    <p>© 2026 ENTERPRISE DATABASE MANAGEMENT</p>
+            <footer className="footer">
+                <div className="footer-inner">
+                    <span>Enterprise DBMS · SQLite relational engine · ACID transactions</span>
+                    <span>© 2026 Enterprise Database Management</span>
                 </div>
             </footer>
-
         </div>
     );
 }
@@ -160,7 +121,9 @@ function AppContent() {
 export default function App() {
     return (
         <AuthProvider>
-            <AppContent />
+            <ToastProvider>
+                <AppContent />
+            </ToastProvider>
         </AuthProvider>
     );
 }

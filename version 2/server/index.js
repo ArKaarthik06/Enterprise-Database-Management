@@ -13,6 +13,7 @@ const projectRoutes = require('./routes/projects');
 const hrRoutes = require('./routes/hr');
 const crmRoutes = require('./routes/crm');
 const notificationRoutes = require('./routes/notifications');
+const orgRoutes = require('./routes/org');
 
 const app = express();
 const PORT = process.env.PORT || 5000;
@@ -32,6 +33,7 @@ app.use('/api/projects', projectRoutes);
 app.use('/api/hr', hrRoutes);
 app.use('/api/crm', crmRoutes);
 app.use('/api/notifications', notificationRoutes);
+app.use('/api/org', orgRoutes);
 
 // Health check endpoint
 app.get('/api/health', (req, res) => {
@@ -44,9 +46,11 @@ app.get('/api/health', (req, res) => {
 });
 
 // Start Server
-app.listen(PORT, () => {
+app.listen(PORT, async () => {
+    const database = await db.getDb();
+    const { c } = database.prepare("SELECT COUNT(*) AS c FROM sqlite_master WHERE type = 'table' AND name NOT LIKE 'sqlite_%'").get();
     console.log(`====================================================`);
     console.log(`Enterprise DBMS Server running on http://localhost:${PORT}`);
-    console.log(`SQLite Database loaded with 15 relational tables.`);
+    console.log(`SQLite Database loaded with ${c} relational tables.`);
     console.log(`====================================================`);
 });

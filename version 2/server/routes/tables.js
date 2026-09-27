@@ -1,12 +1,35 @@
 const express = require('express');
 const router = express.Router();
 const { getDb, queryAll, queryOne, runQuery, runTransaction } = require('../db/database');
+const { friendlyDbError } = require('../db/notify');
 
 const VALID_TABLES = [
-    'roles', 'users', 'departments', 'designations', 'employees',
+    'roles', 'users', 'departments', 'designations', 'employees', 'teams', 'team_members',
     'projects', 'tasks', 'clients', 'invoices', 'assets',
-    'notifications', 'attendance', 'leave_requests', 'payroll', 'performance_reviews'
+    'notifications', 'attendance', 'leave_requests', 'payroll', 'performance_reviews',
+    'leads', 'interactions'
 ];
+
+// Primary key columns in key order. team_members has a composite (team_id, employee_id) key.
+function getPkCols(columnsInfo) {
+    const pks = columnsInfo.filter(c => c.pk > 0).sort((a, b) => a.pk - b.pk).map(c => c.name);
+    return pks.length ? pks : [columnsInfo[0]?.name].filter(Boolean);
+}
+
+// Composite keys arrive joined with '~' in the URL, e.g. /team_members/2~5
+function pkWhere(pkCols, id) {
+    const values = pkCols.length > 1 ? String(id).split('~') : [id];
+    if (values.length !== pkCols.length) throw new Error(`Expected ${pkCols.length} key values for ${pkCols.join(', ')}`);
+    return { clause: pkCols.map(c => `${c} = ?`).join(' AND '), values };
+}
+
+// Empty form fields mean NULL, otherwise optional foreign keys would fail with ''
+const toDbValue = v => (v === '' ? null : v);
+
+function sendError(res, err) {
+    const { status, error } = friendlyDbError(err);
+    res.status(status === 500 ? 400 : status).json({ error });
+}
 
 // List all available tables with row counts and column metadata
 router.get('/', async (req, res) => {
@@ -18,13 +41,16 @@ router.get('/', async (req, res) => {
             const columns = pragma.map(c => ({
                 name: c.name,
                 type: c.type,
-                pk: Boolean(c.pk)
+                pk: Boolean(c.pk),
+                notnull: Boolean(c.notnull)
             }));
             
             return {
                 name: tableName,
                 rowCount: countObj ? countObj.count : 0,
                 columnCount: columns.length,
+                primaryKey: getPkCols(pragma),
+                foreignKeys: queryAll(db, `PRAGMA foreign_key_list(${tableName})`).map(fk => ({ from: fk.from, table: fk.table, to: fk.to, onDelete: fk.on_delete })),
                 columns
             };
         });
@@ -95,10 +121,7 @@ router.get('/:tableName', async (req, res) => {
         if (sortBy && columnNames.includes(sortBy)) {
             orderByClause = ` ORDER BY ${sortBy} ${sortOrder}`;
         } else {
-            const pkCol = columnsInfo.find(c => c.pk === 1)?.name || columnNames[0];
-            if (pkCol) {
-                orderByClause = ` ORDER BY ${pkCol} ASC`;
-            }
+            orderByClause = ` ORDER BY ${getPkCols(columnsInfo).join(', ')} ASC`;
         }
 
         // Data fetch
@@ -108,6 +131,8 @@ router.get('/:tableName', async (req, res) => {
         res.json({
             tableName,
             columns: columnsInfo,
+            primaryKey: getPkCols(columnsInfo),
+            foreignKeys: queryAll(db, `PRAGMA foreign_key_list(${tableName})`).map(fk => ({ from: fk.from, table: fk.table, to: fk.to })),
             data: rows,
             pagination: {
                 page,
@@ -144,7 +169,7 @@ router.post('/:tableName', async (req, res) => {
         }
 
         const placeholders = keys.map(() => '?').join(', ');
-        const values = keys.map(k => rowData[k]);
+        const values = keys.map(k => toDbValue(rowData[k]));
         const sql = `INSERT INTO ${tableName} (${keys.join(', ')}) VALUES (${placeholders})`;
 
         // ACID Principle: Atomicity & Isolation
@@ -154,7 +179,7 @@ router.post('/:tableName', async (req, res) => {
         });
         res.json({ message: 'Record inserted successfully', result });
     } catch (err) {
-        res.status(400).json({ error: err.message });
+        sendError(res, err);
     }
 });
 
@@ -174,20 +199,20 @@ router.put('/:tableName/:id', async (req, res) => {
         const db = await getDb();
         const columnsInfo = queryAll(db, `PRAGMA table_info(${tableName})`);
         const validColumnNames = columnsInfo.map(c => c.name);
-        const pkCol = columnsInfo.find(c => c.pk === 1)?.name || columnsInfo[0]?.name;
-
-        if (!pkCol) {
+        const pkCols = getPkCols(columnsInfo);
+        if (pkCols.length === 0) {
             return res.status(400).json({ error: 'Could not determine Primary Key column for table' });
         }
 
-        const setKeys = Object.keys(rowData).filter(k => validColumnNames.includes(k) && k !== pkCol);
+        const setKeys = Object.keys(rowData).filter(k => validColumnNames.includes(k) && !pkCols.includes(k));
         if (setKeys.length === 0) {
             return res.status(400).json({ error: 'No valid update fields provided' });
         }
 
+        const where = pkWhere(pkCols, id);
         const setClause = setKeys.map(k => `${k} = ?`).join(', ');
-        const values = [...setKeys.map(k => rowData[k]), id];
-        const sql = `UPDATE ${tableName} SET ${setClause} WHERE ${pkCol} = ?`;
+        const values = [...setKeys.map(k => toDbValue(rowData[k])), ...where.values];
+        const sql = `UPDATE ${tableName} SET ${setClause} WHERE ${where.clause}`;
 
         // ACID Principle: Atomicity & Isolation
         // Wrapping this in a transaction ensures that the update is atomic and isolated.
@@ -196,7 +221,7 @@ router.put('/:tableName/:id', async (req, res) => {
         });
         res.json({ message: 'Record updated successfully', result });
     } catch (err) {
-        res.status(400).json({ error: err.message });
+        sendError(res, err);
     }
 });
 
@@ -210,21 +235,22 @@ router.delete('/:tableName/:id', async (req, res) => {
     try {
         const db = await getDb();
         const columnsInfo = queryAll(db, `PRAGMA table_info(${tableName})`);
-        const pkCol = columnsInfo.find(c => c.pk === 1)?.name || columnsInfo[0]?.name;
-
-        if (!pkCol) {
+        const pkCols = getPkCols(columnsInfo);
+        if (pkCols.length === 0) {
             return res.status(400).json({ error: 'Could not determine Primary Key column for table' });
         }
 
-        const sql = `DELETE FROM ${tableName} WHERE ${pkCol} = ?`;
+        const where = pkWhere(pkCols, id);
+        const sql = `DELETE FROM ${tableName} WHERE ${where.clause}`;
         // ACID Principle: Atomicity & Isolation
         // Wrapping this in a transaction ensures that the delete operation is atomic and isolated.
         const result = runTransaction(db, () => {
-            return runQuery(db, sql, [id]);
+            return runQuery(db, sql, where.values);
         });
+        if (result.changes === 0) return res.status(404).json({ error: 'Record not found' });
         res.json({ message: 'Record deleted successfully', result });
     } catch (err) {
-        res.status(400).json({ error: err.message });
+        sendError(res, err);
     }
 });
 

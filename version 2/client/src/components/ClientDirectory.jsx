@@ -1,134 +1,101 @@
-import React, { useState, useEffect } from 'react';
-import { Users, Mail, Phone, MapPin, Plus } from 'lucide-react';
+import React, { useState } from 'react';
+import { Users, Mail, Phone, MapPin, Plus, Pencil, Trash2, Search, MessageSquare, KeyRound } from 'lucide-react';
+import InteractionLog from './InteractionLog';
+import { Modal, FormModal, Field, EmptyState, Loading, ErrorNote, SearchInput, Avatar, useFetch, useForm, useAction, api, fmtMoney } from './ui';
 
 export default function ClientDirectory() {
-    const [clients, setClients] = useState([]);
-    const [loading, setLoading] = useState(true);
-    const [showAddForm, setShowAddForm] = useState(false);
-    const [formData, setFormData] = useState({
-        name: '', company: '', email: '', phone: '', address: ''
-    });
+    const clients = useFetch('/api/crm/clients', []);
+    const run = useAction();
+    const [search, setSearch] = useState('');
+    const [editing, setEditing] = useState(null);
+    const [activityFor, setActivityFor] = useState(null);
 
-    const fetchClients = async () => {
-        try {
-            const res = await fetch('/api/crm/clients');
-            if (res.ok) {
-                const data = await res.json();
-                setClients(data);
-            }
-        } catch (err) {
-            console.error(err);
-        } finally {
-            setLoading(false);
-        }
+    const remove = async (c) => {
+        const msg = c.project_count
+            ? `Delete ${c.company}? Its ${c.project_count} project(s), their tasks and invoices will be deleted too (ON DELETE CASCADE).`
+            : `Delete ${c.company}?`;
+        if (!window.confirm(msg)) return;
+        if (await run(() => api.del(`/api/crm/clients/${c.client_id}`), 'Client deleted')) clients.reload();
     };
 
-    useEffect(() => {
-        fetchClients();
-    }, []);
-
-    const handleAddClient = async (e) => {
-        e.preventDefault();
-        try {
-            const res = await fetch('/api/crm/clients', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify(formData)
-            });
-            if (res.ok) {
-                setShowAddForm(false);
-                setFormData({ name: '', company: '', email: '', phone: '', address: '' });
-                fetchClients();
-            }
-        } catch (err) {
-            console.error(err);
-        }
-    };
-
-    if (loading) return <div style={{ padding: '2rem', textAlign: 'center', color: 'var(--text-muted)' }}>LOADING CLIENTS...</div>;
+    const q = search.toLowerCase();
+    const visible = clients.data.filter(c => !q || `${c.company} ${c.name} ${c.email || ''}`.toLowerCase().includes(q));
 
     return (
-        <div>
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1.5rem' }}>
-                <h3 style={{ fontFamily: 'var(--font-mono)', fontSize: '1.25rem', fontWeight: 800, textTransform: 'uppercase', color: 'var(--primary)' }}>Client Directory</h3>
-                <button 
-                    onClick={() => setShowAddForm(!showAddForm)}
-                    style={{
-                        background: showAddForm ? 'transparent' : 'var(--primary)',
-                        color: showAddForm ? 'var(--text-muted)' : '#000',
-                        border: '1px solid var(--primary)',
-                        padding: '0.5rem 1rem', fontFamily: 'var(--font-mono)', fontWeight: 800, textTransform: 'uppercase', cursor: 'pointer'
-                    }}
-                >
-                    {showAddForm ? 'Cancel' : <><Plus className="w-4 h-4 inline-block mr-1" /> Add Client</>}
-                </button>
+        <div className="stack">
+            <div className="row-between wrap">
+                <SearchInput value={search} onChange={setSearch} placeholder="Search clients…" icon={Search} width={280} />
+                <button className="btn btn-primary btn-sm" onClick={() => setEditing('new')}><Plus size={15} /> Add client</button>
             </div>
 
-            {showAddForm && (
-                <form onSubmit={handleAddClient} style={{ background: 'var(--bg-card)', padding: '1.5rem', border: '1px solid var(--primary)', marginBottom: '2rem', boxShadow: 'var(--shadow-glow)' }}>
-                    <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem', marginBottom: '1rem' }}>
-                        <div>
-                            <label style={{ display: 'block', fontSize: '0.75rem', fontFamily: 'var(--font-mono)', textTransform: 'uppercase', color: 'var(--text-muted)', marginBottom: '0.25rem' }}>Contact Name</label>
-                            <input required className="form-input" value={formData.name} onChange={e => setFormData({...formData, name: e.target.value})} />
-                        </div>
-                        <div>
-                            <label style={{ display: 'block', fontSize: '0.75rem', fontFamily: 'var(--font-mono)', textTransform: 'uppercase', color: 'var(--text-muted)', marginBottom: '0.25rem' }}>Company</label>
-                            <input required className="form-input" value={formData.company} onChange={e => setFormData({...formData, company: e.target.value})} />
-                        </div>
-                        <div>
-                            <label style={{ display: 'block', fontSize: '0.75rem', fontFamily: 'var(--font-mono)', textTransform: 'uppercase', color: 'var(--text-muted)', marginBottom: '0.25rem' }}>Email</label>
-                            <input type="email" className="form-input" value={formData.email} onChange={e => setFormData({...formData, email: e.target.value})} />
-                        </div>
-                        <div>
-                            <label style={{ display: 'block', fontSize: '0.75rem', fontFamily: 'var(--font-mono)', textTransform: 'uppercase', color: 'var(--text-muted)', marginBottom: '0.25rem' }}>Phone</label>
-                            <input className="form-input" value={formData.phone} onChange={e => setFormData({...formData, phone: e.target.value})} />
-                        </div>
-                        <div style={{ gridColumn: '1 / -1' }}>
-                            <label style={{ display: 'block', fontSize: '0.75rem', fontFamily: 'var(--font-mono)', textTransform: 'uppercase', color: 'var(--text-muted)', marginBottom: '0.25rem' }}>Address</label>
-                            <input className="form-input" value={formData.address} onChange={e => setFormData({...formData, address: e.target.value})} />
-                        </div>
-                    </div>
-                    <button type="submit" style={{ background: 'var(--primary)', color: 'var(--primary-text)', border: 'none', padding: '0.5rem 1rem', fontFamily: 'var(--font-mono)', fontWeight: 800, textTransform: 'uppercase', cursor: 'pointer' }}>
-                        Save Client
-                    </button>
-                </form>
-            )}
-
-            {clients.length === 0 ? (
-                <div style={{ padding: '3rem', textAlign: 'center', color: 'var(--text-muted)', border: '1px solid var(--border-color)', background: 'var(--bg-card)' }}>
-                    <p style={{ fontFamily: 'var(--font-mono)', textTransform: 'uppercase' }}>No Clients Found.</p>
-                </div>
+            <ErrorNote message={clients.error} onRetry={clients.reload} />
+            {clients.loading ? <Loading /> : visible.length === 0 ? (
+                <div className="card"><EmptyState icon={Users} title="No clients found" hint="Add a client directly, or convert a won lead from the pipeline." /></div>
             ) : (
-                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(300px, 1fr))', gap: '1.5rem' }}>
-                    {clients.map(client => (
-                        <div key={client.client_id} style={{ background: 'var(--bg-card)', border: '1px solid var(--border-color)', padding: '1.5rem', transition: 'all 0.2s' }} className="hover:border-primary hover:shadow-glow">
-                            <h4 style={{ fontWeight: 800, fontSize: '1.1rem', color: 'var(--text-main)', marginBottom: '0.2rem', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-                                <Users className="w-5 h-5 text-primary" /> {client.company}
-                            </h4>
-                            <div style={{ color: 'var(--text-muted)', fontSize: '0.9rem', marginBottom: '1rem', paddingBottom: '0.5rem', borderBottom: '1px solid var(--border-color)' }}>
-                                Contact: {client.name}
+                <div className="grid-cards">
+                    {visible.map(c => (
+                        <div key={c.client_id} className="card interactive stack-sm">
+                            <div className="row-between" style={{ alignItems: 'flex-start' }}>
+                                <div className="row">
+                                    <Avatar name={c.company} />
+                                    <div>
+                                        <div className="strong">{c.company}</div>
+                                        <div className="text-sm muted">{c.name}</div>
+                                    </div>
+                                </div>
+                                <div className="row" style={{ gap: 0 }}>
+                                    <button className="btn btn-ghost btn-icon btn-sm" title="Edit" onClick={() => setEditing(c)}><Pencil size={14} /></button>
+                                    <button className="btn btn-ghost btn-icon btn-sm danger" title="Delete" onClick={() => remove(c)}><Trash2 size={14} /></button>
+                                </div>
                             </div>
-                            <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem', fontSize: '0.85rem' }}>
-                                {client.email && (
-                                    <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', color: 'var(--text-main)' }}>
-                                        <Mail className="w-4 h-4 text-muted" /> {client.email}
-                                    </div>
-                                )}
-                                {client.phone && (
-                                    <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', color: 'var(--text-main)' }}>
-                                        <Phone className="w-4 h-4 text-muted" /> {client.phone}
-                                    </div>
-                                )}
-                                {client.address && (
-                                    <div style={{ display: 'flex', alignItems: 'flex-start', gap: '0.5rem', color: 'var(--text-main)' }}>
-                                        <MapPin className="w-4 h-4 text-muted flex-shrink-0 mt-1" /> {client.address}
-                                    </div>
-                                )}
+
+                            <div className="stack-sm text-sm" style={{ gap: '0.3rem' }}>
+                                {c.email && <a className="row" style={{ gap: 6 }} href={`mailto:${c.email}`}><Mail size={13} />{c.email}</a>}
+                                {c.phone && <div className="row muted" style={{ gap: 6 }}><Phone size={13} />{c.phone}</div>}
+                                {c.address && <div className="row muted" style={{ gap: 6 }}><MapPin size={13} /><span className="truncate">{c.address}</span></div>}
+                                <div className="row muted" style={{ gap: 6 }}><KeyRound size={13} />{c.username ? <>Portal login: <span className="mono">{c.username}</span></> : 'No portal login'}</div>
                             </div>
+
+                            <div className="row wrap text-sm" style={{ gap: '1rem', borderTop: '1px solid var(--border-color)', paddingTop: '0.6rem', marginTop: 'auto' }}>
+                                <span><strong>{c.project_count}</strong> <span className="muted">projects</span></span>
+                                <span><strong>{fmtMoney(c.total_billed)}</strong> <span className="muted">billed</span></span>
+                                {c.outstanding > 0 && <span className="text-warning"><strong>{fmtMoney(c.outstanding)}</strong> due</span>}
+                            </div>
+                            <button className="btn btn-outline btn-sm" onClick={() => setActivityFor(c)}><MessageSquare size={14} /> Activity log</button>
                         </div>
                     ))}
                 </div>
             )}
+
+            {editing && <ClientFormModal client={editing === 'new' ? null : editing} onClose={() => setEditing(null)} onSaved={clients.reload} />}
+            {activityFor && (
+                <Modal title={activityFor.company} subtitle="Calls, emails and meetings with this client" onClose={() => setActivityFor(null)}>
+                    <div className="modal-body"><InteractionLog entityType="Client" entityId={activityFor.client_id} /></div>
+                </Modal>
+            )}
         </div>
+    );
+}
+
+function ClientFormModal({ client, onClose, onSaved }) {
+    const run = useAction();
+    const [form, bind] = useForm({
+        name: client?.name || '', company: client?.company || '', email: client?.email || '',
+        phone: client?.phone || '', address: client?.address || ''
+    });
+    const submit = async () => {
+        const ok = await run(() => client ? api.put(`/api/crm/clients/${client.client_id}`, form) : api.post('/api/crm/clients', form), client ? 'Client updated' : 'Client added');
+        if (ok) { onSaved(); onClose(); }
+    };
+    return (
+        <FormModal title={client ? `Edit ${client.company}` : 'Add client'} onClose={onClose} onSubmit={submit}>
+            <div className="form-grid">
+                <Field label="Company" required><input className="form-input" value={form.company} onChange={bind('company')} required /></Field>
+                <Field label="Contact name" required><input className="form-input" value={form.name} onChange={bind('name')} required /></Field>
+                <Field label="Email"><input type="email" className="form-input" value={form.email} onChange={bind('email')} /></Field>
+                <Field label="Phone"><input className="form-input" value={form.phone} onChange={bind('phone')} /></Field>
+                <Field label="Address" span><input className="form-input" value={form.address} onChange={bind('address')} /></Field>
+            </div>
+        </FormModal>
     );
 }

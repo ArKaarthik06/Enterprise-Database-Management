@@ -1,66 +1,43 @@
 import React, { useState } from 'react';
+import { Target, Users, Receipt, TrendingUp, Trophy, AlertTriangle } from 'lucide-react';
 import LeadsKanban from './LeadsKanban';
 import ClientDirectory from './ClientDirectory';
 import InvoicesView from './InvoicesView';
-import { Target, Users, Receipt } from 'lucide-react';
+import { PageHeader, Tabs, StatCard, useFetch, fmtMoney } from './ui';
 
 export default function CRMDashboard() {
     const [activeTab, setActiveTab] = useState('pipeline');
+    const leads = useFetch('/api/crm/leads', []);
+    const invoices = useFetch('/api/crm/invoices', []);
+
+    const openLeads = leads.data.filter(l => !['Won', 'Lost'].includes(l.status));
+    const won = leads.data.filter(l => l.status === 'Won');
+    const closed = won.length + leads.data.filter(l => l.status === 'Lost').length;
+    const outstanding = invoices.data.filter(i => !['Paid', 'Cancelled'].includes(i.status));
 
     const tabs = [
-        { id: 'pipeline', label: 'Sales Pipeline', icon: Target },
-        { id: 'clients', label: 'Client Directory', icon: Users },
-        { id: 'invoices', label: 'Invoices & Billing', icon: Receipt }
+        { id: 'pipeline', label: 'Sales pipeline', icon: Target, count: openLeads.length },
+        { id: 'clients', label: 'Clients', icon: Users },
+        { id: 'invoices', label: 'Invoices & billing', icon: Receipt, count: outstanding.filter(i => i.is_overdue || i.status === 'Overdue').length, attention: true }
     ];
 
     return (
-        <div style={{ display: 'flex', flexDirection: 'column', height: '100%', padding: '2rem', background: 'var(--bg-page)', color: 'var(--text-main)', overflowY: 'auto' }}>
-            <div style={{ marginBottom: '2rem' }}>
-                <h2 style={{ fontFamily: 'var(--font-mono)', fontWeight: 800, fontSize: '2rem', textTransform: 'uppercase', color: 'var(--primary)', margin: 0, textShadow: 'var(--shadow-glow)' }}>
-                    Customer Relationship Management
-                </h2>
-                <p style={{ color: 'var(--text-muted)', fontFamily: 'var(--font-mono)' }}>Manage your leads, clients, and billing lifecycle.</p>
+        <div className="page">
+            <PageHeader eyebrow="Customer relationships" title="CRM" subtitle="Move leads through the pipeline, convert them into clients and bill their projects." />
+
+            <div className="stats-grid">
+                <StatCard label="Open pipeline" value={fmtMoney(openLeads.reduce((s, l) => s + (l.expected_value || 0), 0))} meta={`${openLeads.length} active leads`} icon={TrendingUp} />
+                <StatCard label="Won deals" value={fmtMoney(won.reduce((s, l) => s + (l.expected_value || 0), 0))} meta={`Win rate ${closed ? Math.round((won.length / closed) * 100) : 0}%`} icon={Trophy} tone="success" />
+                <StatCard label="Outstanding invoices" value={fmtMoney(outstanding.reduce((s, i) => s + i.amount, 0))} meta={`${outstanding.length} unpaid`} icon={Receipt} tone="warning" />
+                <StatCard label="Overdue" value={outstanding.filter(i => i.is_overdue || i.status === 'Overdue').length} meta="Past due date and unpaid" icon={AlertTriangle} tone="danger" />
             </div>
 
-            {/* Sub-Navigation */}
-            <div style={{ display: 'flex', borderBottom: '2px solid var(--border-color)', marginBottom: '2rem' }}>
-                {tabs.map(tab => {
-                    const Icon = tab.icon;
-                    const isActive = activeTab === tab.id;
-                    return (
-                        <button
-                            key={tab.id}
-                            onClick={() => setActiveTab(tab.id)}
-                            style={{
-                                background: isActive ? 'var(--primary)' : 'transparent',
-                                color: isActive ? 'var(--primary-text)' : 'var(--text-muted)',
-                                border: 'none',
-                                borderTop: isActive ? '2px solid var(--primary)' : '2px solid transparent',
-                                borderRight: '1px solid var(--border-color)',
-                                padding: '1rem 1.5rem',
-                                fontFamily: 'var(--font-mono)',
-                                fontWeight: 800,
-                                textTransform: 'uppercase',
-                                display: 'flex',
-                                alignItems: 'center',
-                                gap: '0.5rem',
-                                cursor: 'pointer',
-                                transition: 'all 0.2s'
-                            }}
-                            className="hover:bg-white/10"
-                        >
-                            <Icon className="w-4 h-4" />
-                            {tab.label}
-                        </button>
-                    );
-                })}
-            </div>
+            <Tabs tabs={tabs} active={activeTab} onChange={setActiveTab} />
 
-            {/* Tab Content */}
-            <div style={{ flex: 1 }}>
-                {activeTab === 'pipeline' && <LeadsKanban />}
+            <div className="animate-fade-in" key={activeTab}>
+                {activeTab === 'pipeline' && <LeadsKanban leads={leads} />}
                 {activeTab === 'clients' && <ClientDirectory />}
-                {activeTab === 'invoices' && <InvoicesView />}
+                {activeTab === 'invoices' && <InvoicesView invoices={invoices} />}
             </div>
         </div>
     );

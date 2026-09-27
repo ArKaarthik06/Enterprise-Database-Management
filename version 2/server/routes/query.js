@@ -155,8 +155,10 @@ router.post('/execute', async (req, res) => {
 
     try {
         const db = await getDb();
-        const isSelect = /^SELECT/i.test(trimmedSql) || /^PRAGMA/i.test(trimmedSql) || /^EXPLAIN/i.test(trimmedSql);
-        
+        // better-sqlite3 knows whether a statement returns rows (SELECT, WITH ... SELECT, PRAGMA, EXPLAIN,
+        // INSERT ... RETURNING), which is more reliable than matching the first keyword.
+        const isSelect = db.prepare(trimmedSql).reader;
+
         if (isSelect) {
             const rows = queryAll(db, trimmedSql);
             const diff = process.hrtime(startTime);
@@ -221,6 +223,22 @@ router.get('/analytics-summary', async (req, res) => {
             GROUP BY category
         `);
 
+        const leadPipeline = queryAll(db, `
+            SELECT status, COUNT(*) as count, COALESCE(SUM(expected_value), 0) as value
+            FROM leads
+            GROUP BY status
+            ORDER BY CASE status WHEN 'New' THEN 1 WHEN 'Contacted' THEN 2 WHEN 'Proposal' THEN 3 WHEN 'Won' THEN 4 ELSE 5 END
+        `);
+
+        const projectStatus = queryAll(db, `
+            SELECT status, COUNT(*) as count FROM projects GROUP BY status ORDER BY count DESC
+        `);
+
+        const activeProjects = queryOne(db, "SELECT COUNT(*) as c FROM projects WHERE status NOT IN ('Completed', 'Cancelled')");
+        const outstanding = queryOne(db, "SELECT COALESCE(SUM(amount), 0) as s FROM invoices WHERE status NOT IN ('Paid', 'Cancelled')");
+        const pendingLeaves = queryOne(db, "SELECT COUNT(*) as c FROM leave_requests WHERE status = 'Pending'");
+        const tableCount = queryOne(db, "SELECT COUNT(*) as c FROM sqlite_master WHERE type = 'table' AND name NOT LIKE 'sqlite_%'");
+
         const empCount = queryOne(db, 'SELECT COUNT(*) as c FROM employees');
         const deptCount = queryOne(db, 'SELECT COUNT(*) as c FROM departments');
         const projCount = queryOne(db, 'SELECT COUNT(*) as c FROM projects');
@@ -234,7 +252,13 @@ router.get('/analytics-summary', async (req, res) => {
             invoiceSummary,
             taskStatus,
             assetCategory,
+            leadPipeline,
+            projectStatus,
             counts: {
+                tables: tableCount ? tableCount.c : 0,
+                activeProjects: activeProjects ? activeProjects.c : 0,
+                outstanding: outstanding ? outstanding.s : 0,
+                pendingLeaves: pendingLeaves ? pendingLeaves.c : 0,
                 employees: empCount ? empCount.c : 0,
                 departments: deptCount ? deptCount.c : 0,
                 projects: projCount ? projCount.c : 0,

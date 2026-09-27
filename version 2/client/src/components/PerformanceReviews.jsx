@@ -1,124 +1,86 @@
-import React, { useState, useEffect } from 'react';
-import { Star, MessageSquare, Plus } from 'lucide-react';
+import React, { useState } from 'react';
+import { Star, Plus } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
+import { Loading, useFetch, useAction, api, fmtDate, useForm } from './ui';
 
-export default function PerformanceReviews({ employeeId, employeeName }) {
+export function Stars({ rating }) {
+    const r = Number(rating) || 0;
+    return (
+        <span className="row" style={{ gap: 2 }} aria-label={`${r.toFixed(1)} out of 5`}>
+            {[1, 2, 3, 4, 5].map(i => (
+                <Star key={i} size={14} fill={i <= Math.round(r) ? 'var(--warning)' : 'none'} color={i <= Math.round(r) ? 'var(--warning)' : 'var(--border-strong)'} />
+            ))}
+            <span className="mono text-sm strong" style={{ marginLeft: 4 }}>{r.toFixed(1)}</span>
+        </span>
+    );
+}
+
+export default function PerformanceReviews({ employeeId, employeeName, readOnly = false }) {
     const { user } = useAuth();
-    const [reviews, setReviews] = useState([]);
-    const [loading, setLoading] = useState(true);
+    const reviews = useFetch(employeeId ? `/api/hr/reviews?employee_id=${employeeId}` : null, []);
+    const run = useAction();
     const [showForm, setShowForm] = useState(false);
-    const [formData, setFormData] = useState({ rating: '5.0', comments: '' });
-
-    const fetchReviews = async () => {
-        try {
-            const res = await fetch(`/api/hr/reviews?employee_id=${employeeId}`);
-            if (res.ok) {
-                const data = await res.json();
-                setReviews(data);
-            }
-        } catch (err) {
-            console.error(err);
-        } finally {
-            setLoading(false);
-        }
-    };
-
-    useEffect(() => {
-        if (employeeId) fetchReviews();
-    }, [employeeId]);
+    const [form, bind, reset] = useForm({ rating: '4', comments: '' });
 
     const handleSubmit = async (e) => {
         e.preventDefault();
-        try {
-            const res = await fetch('/api/hr/reviews', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({
-                    employee_id: employeeId,
-                    reviewer_id: user.employee_id,
-                    rating: parseFloat(formData.rating),
-                    comments: formData.comments
-                })
-            });
-            if (res.ok) {
-                setShowForm(false);
-                setFormData({ rating: '5.0', comments: '' });
-                fetchReviews();
-            }
-        } catch (err) {
-            console.error(err);
+        const ok = await run(() => api.post('/api/hr/reviews', {
+            employee_id: employeeId,
+            reviewer_id: user.employee_id,
+            rating: parseFloat(form.rating),
+            comments: form.comments
+        }), 'Review submitted');
+        if (ok) {
+            setShowForm(false);
+            reset();
+            reviews.reload();
         }
     };
 
-    if (loading) return <div style={{ padding: '2rem', color: 'var(--text-muted)', fontSize: '0.85rem' }}>LOADING REVIEWS...</div>;
+    const avg = reviews.data.length ? reviews.data.reduce((s, r) => s + Number(r.rating), 0) / reviews.data.length : null;
 
     return (
-        <div style={{ marginTop: '1rem', background: 'var(--bg-subtle)', padding: '1rem', border: '1px solid var(--border-color)' }}>
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1rem' }}>
-                <h3 style={{ fontFamily: 'var(--font-mono)', fontSize: '0.9rem', fontWeight: '700', textTransform: 'uppercase', color: 'var(--primary)', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-                    <Star className="w-4 h-4" /> Performance Reviews for {employeeName}
-                </h3>
-                <button 
-                    onClick={() => setShowForm(!showForm)}
-                    style={{
-                        background: showForm ? 'transparent' : 'var(--primary)', 
-                        color: showForm ? 'var(--text-muted)' : '#000',
-                        border: '1px solid var(--primary)',
-                        padding: '0.4rem 0.75rem', fontSize: '0.75rem', fontFamily: 'var(--font-mono)', fontWeight: '800', textTransform: 'uppercase', cursor: 'pointer'
-                    }}
-                >
-                    {showForm ? 'Cancel' : <><Plus className="w-3 h-3 inline-block mr-1" /> Add Review</>}
-                </button>
+        <div className="stack-sm">
+            <div className="row-between">
+                <div className="row">
+                    <span className="strong">Performance reviews{employeeName ? ` · ${employeeName}` : ''}</span>
+                    {avg !== null && <span className="text-sm muted">avg <Stars rating={avg} /></span>}
+                </div>
+                {!readOnly && (
+                    <button className={`btn btn-sm ${showForm ? 'btn-ghost' : 'btn-outline'}`} onClick={() => setShowForm(!showForm)}>
+                        {showForm ? 'Cancel' : <><Plus size={14} /> Add review</>}
+                    </button>
+                )}
             </div>
 
             {showForm && (
-                <form onSubmit={handleSubmit} style={{ marginBottom: '1.5rem', background: 'var(--bg-card)', padding: '1rem', border: '1px solid var(--border-color)' }}>
-                    <div style={{ marginBottom: '1rem' }}>
-                        <label style={{ display: 'block', marginBottom: '0.5rem', fontFamily: 'var(--font-mono)', fontSize: '0.75rem', textTransform: 'uppercase', color: 'var(--text-muted)' }}>Rating (1.0 - 5.0)</label>
-                        <input 
-                            type="number" step="0.1" min="1" max="5" required 
-                            className="form-input" 
-                            style={{ maxWidth: '150px' }}
-                            value={formData.rating} 
-                            onChange={(e) => setFormData({ ...formData, rating: e.target.value })} 
-                        />
+                <form onSubmit={handleSubmit} className="card stack-sm" style={{ boxShadow: 'none' }}>
+                    <div className="row wrap" style={{ gap: '1rem', alignItems: 'flex-end' }}>
+                        <label className="field" style={{ width: 150 }}>
+                            <span className="form-label">Rating (1 – 5)</span>
+                            <input type="number" step="0.5" min="1" max="5" required className="form-input" value={form.rating} onChange={bind('rating')} />
+                        </label>
+                        <Stars rating={form.rating} />
                     </div>
-                    <div style={{ marginBottom: '1rem' }}>
-                        <label style={{ display: 'block', marginBottom: '0.5rem', fontFamily: 'var(--font-mono)', fontSize: '0.75rem', textTransform: 'uppercase', color: 'var(--text-muted)' }}>Comments</label>
-                        <textarea 
-                            required 
-                            className="form-input" 
-                            rows="3"
-                            value={formData.comments} 
-                            onChange={(e) => setFormData({ ...formData, comments: e.target.value })} 
-                        />
-                    </div>
-                    <button type="submit" style={{
-                        background: 'var(--primary)', color: 'var(--primary-text)', border: 'none', padding: '0.5rem 1rem', fontFamily: 'var(--font-mono)', fontWeight: '800', textTransform: 'uppercase', cursor: 'pointer'
-                    }}>
-                        Submit Review
-                    </button>
+                    <label className="field">
+                        <span className="form-label">Comments</span>
+                        <textarea required className="form-textarea" rows={3} value={form.comments} onChange={bind('comments')} placeholder="Strengths, growth areas, goals for next cycle…" />
+                    </label>
+                    <div className="form-actions"><button type="submit" className="btn btn-primary btn-sm">Submit review</button></div>
                 </form>
             )}
 
-            {reviews.length === 0 ? (
-                <div style={{ color: 'var(--text-muted)', fontSize: '0.85rem', fontStyle: 'italic' }}>No reviews found for this employee.</div>
+            {reviews.loading ? <Loading /> : reviews.data.length === 0 ? (
+                <div className="text-sm muted">No reviews recorded yet.</div>
             ) : (
-                <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
-                    {reviews.map(r => (
-                        <div key={r.review_id} style={{ background: 'var(--bg-card)', padding: '1rem', borderLeft: '2px solid var(--primary)' }}>
-                            <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '0.5rem' }}>
-                                <div style={{ fontSize: '0.85rem', fontWeight: '700', color: 'var(--text-main)' }}>
-                                    {r.reviewer_first} {r.reviewer_last} <span style={{ color: 'var(--text-muted)', fontWeight: '400', marginLeft: '0.5rem' }}>on {new Date(r.review_date).toLocaleDateString()}</span>
-                                </div>
-                                <div style={{ background: 'var(--primary)', color: 'var(--primary-text)', padding: '0.1rem 0.5rem', fontWeight: '800', fontSize: '0.75rem' }}>
-                                    {r.rating.toFixed(1)}
-                                </div>
+                <div className="timeline">
+                    {reviews.data.map(r => (
+                        <div key={r.review_id} className="timeline-item">
+                            <div className="row-between wrap">
+                                <Stars rating={r.rating} />
+                                <span className="text-xs muted">{r.reviewer_first} {r.reviewer_last} · {fmtDate(r.review_date)}</span>
                             </div>
-                            <div style={{ fontSize: '0.9rem', color: 'var(--text-muted)', display: 'flex', gap: '0.5rem' }}>
-                                <MessageSquare className="w-4 h-4 flex-shrink-0 mt-1 opacity-50" />
-                                <p style={{ margin: 0 }}>{r.comments}</p>
-                            </div>
+                            {r.comments && <p className="text-sm" style={{ marginTop: '0.35rem' }}>{r.comments}</p>}
                         </div>
                     ))}
                 </div>

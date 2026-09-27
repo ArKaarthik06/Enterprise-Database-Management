@@ -1,6 +1,7 @@
 const express = require('express');
 const router = express.Router();
-const { getDb, queryAll, runQuery, runTransaction } = require('../db/database');
+const { getDb, queryAll, queryOne, runQuery, runTransaction } = require('../db/database');
+const { sendDbError, notifyEmployee, notifyClient } = require('../db/notify');
 
 // --- MANAGER ENDPOINTS ---
 
@@ -92,11 +93,58 @@ router.put('/manager/assets/:id/assign', async (req, res) => {
         const db = await getDb();
         runTransaction(db, () => {
             const sql = `UPDATE assets SET assigned_to = ?, status = ? WHERE asset_id = ?`;
-            runQuery(db, sql, [assigned_to, status, assetId]);
+            runQuery(db, sql, [assigned_to || null, status, assetId]);
+            if (assigned_to) {
+                const asset = queryOne(db, `SELECT name FROM assets WHERE asset_id = ?`, [assetId]);
+                notifyEmployee(db, assigned_to, 'Asset issued to you', `${asset ? asset.name : 'An asset'} has been assigned to you.`);
+            }
         });
         res.json({ message: 'Asset assignment updated' });
     } catch (err) {
-        res.status(500).json({ error: err.message });
+        sendDbError(res, err);
+    }
+});
+
+// Register a new asset
+router.post('/manager/assets', async (req, res) => {
+    const { name, category, purchase_date, assigned_to } = req.body;
+    if (!name || !category) return res.status(400).json({ error: 'Name and category are required' });
+    try {
+        const db = await getDb();
+        const result = runQuery(db, `INSERT INTO assets (name, category, purchase_date, assigned_to, status) VALUES (?, ?, ?, ?, ?)`,
+            [name, category, purchase_date || null, assigned_to || null, assigned_to ? 'In Use' : 'Available']);
+        res.json({ message: 'Asset registered', asset_id: result.lastInsertRowid });
+    } catch (err) {
+        sendDbError(res, err);
+    }
+});
+
+// Edit asset details / lifecycle status (Available, In Use, Maintenance, Retired)
+router.put('/manager/assets/:id', async (req, res) => {
+    const { name, category, purchase_date, status } = req.body;
+    if (!name || !category || !status) return res.status(400).json({ error: 'Name, category and status are required' });
+    try {
+        const db = await getDb();
+        // Retired or available assets can't stay assigned to anyone
+        const clearAssignee = ['Available', 'Retired'].includes(status);
+        runQuery(db, `
+            UPDATE assets SET name = ?, category = ?, purchase_date = ?, status = ?
+                ${clearAssignee ? ', assigned_to = NULL' : ''}
+            WHERE asset_id = ?
+        `, [name, category, purchase_date || null, status, req.params.id]);
+        res.json({ message: 'Asset updated' });
+    } catch (err) {
+        sendDbError(res, err);
+    }
+});
+
+router.delete('/manager/assets/:id', async (req, res) => {
+    try {
+        const db = await getDb();
+        runQuery(db, `DELETE FROM assets WHERE asset_id = ?`, [req.params.id]);
+        res.json({ message: 'Asset deleted' });
+    } catch (err) {
+        sendDbError(res, err);
     }
 });
 
@@ -105,10 +153,13 @@ router.get('/manager/teams', async (req, res) => {
     try {
         const db = await getDb();
         const sql = `
-            SELECT t.*, e.first_name as manager_first, e.last_name as manager_last
+            SELECT t.*, e.first_name as manager_first, e.last_name as manager_last, d.name AS department_name,
+                   (SELECT COUNT(*) FROM team_members tm WHERE tm.team_id = t.team_id) AS member_count,
+                   (SELECT COUNT(*) FROM projects p WHERE p.team_id = t.team_id) AS project_count
             FROM teams t
             LEFT JOIN employees e ON t.manager_id = e.employee_id
-            ORDER BY t.team_id DESC
+            LEFT JOIN departments d ON t.department_id = d.department_id
+            ORDER BY t.name
         `;
         const teams = queryAll(db, sql);
         res.json(teams);
@@ -157,7 +208,32 @@ router.post('/manager/teams', async (req, res) => {
         });
         res.json({ message: 'Team created successfully' });
     } catch (err) {
-        res.status(500).json({ error: err.message });
+        sendDbError(res, err);
+    }
+});
+
+// Rename team / change department or team lead
+router.put('/manager/teams/:teamId', async (req, res) => {
+    const { name, department_id, manager_id } = req.body;
+    if (!name || !department_id) return res.status(400).json({ error: 'name and department_id required' });
+    try {
+        const db = await getDb();
+        runQuery(db, `UPDATE teams SET name = ?, department_id = ?, manager_id = ? WHERE team_id = ?`,
+            [name, department_id, manager_id || null, req.params.teamId]);
+        res.json({ message: 'Team updated' });
+    } catch (err) {
+        sendDbError(res, err);
+    }
+});
+
+// Delete team (memberships cascade, projects keep running with team_id = NULL)
+router.delete('/manager/teams/:teamId', async (req, res) => {
+    try {
+        const db = await getDb();
+        runQuery(db, `DELETE FROM teams WHERE team_id = ?`, [req.params.teamId]);
+        res.json({ message: 'Team deleted' });
+    } catch (err) {
+        sendDbError(res, err);
     }
 });
 
@@ -350,10 +426,15 @@ router.get('/client/projects', async (req, res) => {
     try {
         const db = await getDb();
         const sql = `
-            SELECT project_id, name, description, start_date, end_date, status, manager_id, team_id
-            FROM projects
-            WHERE client_id = ?
-            ORDER BY project_id DESC
+            SELECT p.project_id, p.name, p.description, p.start_date, p.end_date, p.status, p.manager_id, p.team_id,
+                   m.first_name AS manager_first, m.last_name AS manager_last, t.name AS team_name,
+                   (SELECT COUNT(*) FROM tasks tk WHERE tk.project_id = p.project_id) AS task_total,
+                   (SELECT COUNT(*) FROM tasks tk WHERE tk.project_id = p.project_id AND tk.status = 'Completed') AS task_done
+            FROM projects p
+            LEFT JOIN employees m ON p.manager_id = m.employee_id
+            LEFT JOIN teams t ON p.team_id = t.team_id
+            WHERE p.client_id = ?
+            ORDER BY p.project_id DESC
         `;
         const projects = queryAll(db, sql, [clientId]);
         res.json(projects);
@@ -367,6 +448,9 @@ router.post('/client/request-project', async (req, res) => {
     const { client_id, name, description, start_date, end_date } = req.body;
     if (!client_id || !name) {
         return res.status(400).json({ error: 'Client ID and project name are required' });
+    }
+    if (start_date && end_date && end_date < start_date) {
+        return res.status(400).json({ error: 'End date cannot be before start date' });
     }
 
     try {
@@ -404,22 +488,6 @@ router.get('/manager/unassigned-projects', async (req, res) => {
     }
 });
 
-// Get all teams for dropdown
-router.get('/manager/teams', async (req, res) => {
-    try {
-        const db = await getDb();
-        const sql = `
-            SELECT team_id, name 
-            FROM teams
-            ORDER BY name
-        `;
-        const teams = queryAll(db, sql);
-        res.json(teams);
-    } catch (err) {
-        res.status(500).json({ error: err.message });
-    }
-});
-
 // Assign team to project
 router.post('/manager/assign-team', async (req, res) => {
     const { project_id, team_id, manager_id } = req.body;
@@ -436,6 +504,10 @@ router.post('/manager/assign-team', async (req, res) => {
                 WHERE project_id = ?
             `;
             runQuery(db, sqlUpdate, [team_id, manager_id, project_id]);
+            const project = queryOne(db, `SELECT client_id, name FROM projects WHERE project_id = ?`, [project_id]);
+            if (project) {
+                notifyClient(db, project.client_id, 'Project accepted', `"${project.name}" has been assigned a team and is now In Progress.`);
+            }
         });
         res.json({ message: 'Team assigned to project successfully.' });
     } catch (err) {

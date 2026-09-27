@@ -1,165 +1,115 @@
-import React, { useState, useEffect } from 'react';
-import { FileText, Plus, CheckCircle2, Circle } from 'lucide-react';
+import React, { useState } from 'react';
+import { Receipt, Plus, Trash2, CheckCircle2 } from 'lucide-react';
+import { Panel, FormModal, Field, EmptyState, Loading, ErrorNote, StatusBadge, useForm, useAction, useLookups, api, fmtMoney, fmtDate, code, todayISO } from './ui';
 
-export default function InvoicesView() {
-    const [invoices, setInvoices] = useState([]);
-    const [clients, setClients] = useState([]);
-    const [projects, setProjects] = useState([]);
-    const [loading, setLoading] = useState(true);
-    const [showAddForm, setShowAddForm] = useState(false);
-    
-    const [formData, setFormData] = useState({
-        client_id: '', project_id: '', amount: '', issue_date: '', due_date: ''
-    });
+const FILTERS = ['All', 'Pending', 'Overdue', 'Paid', 'Cancelled'];
 
-    const fetchData = async () => {
-        try {
-            const [invRes, cliRes, projRes] = await Promise.all([
-                fetch('/api/crm/invoices'),
-                fetch('/api/crm/clients'),
-                fetch('/api/projects/my-projects?manager_id=1') // Simplification for demo
-            ]);
-            
-            if (invRes.ok) setInvoices(await invRes.json());
-            if (cliRes.ok) setClients(await cliRes.json());
-            if (projRes.ok) setProjects(await projRes.json());
-        } catch (err) {
-            console.error(err);
-        } finally {
-            setLoading(false);
-        }
+// `invoices` is a useFetch() result owned by CRMDashboard so header stats stay in sync.
+export default function InvoicesView({ invoices }) {
+    const run = useAction();
+    const [creating, setCreating] = useState(false);
+    const [filter, setFilter] = useState('All');
+
+    const effectiveStatus = (i) => (i.is_overdue && i.status === 'Pending' ? 'Overdue' : i.status);
+
+    const setStatus = async (inv, status) => {
+        if (await run(() => api.patch(`/api/crm/invoices/${inv.invoice_id}/status`, { status }), `${code('INV', inv.invoice_id)} marked ${status}`)) invoices.reload();
     };
 
-    useEffect(() => {
-        fetchData();
-        // Today's date for defaults
-        const today = new Date().toISOString().split('T')[0];
-        const nextMonth = new Date();
-        nextMonth.setMonth(nextMonth.getMonth() + 1);
-        setFormData(prev => ({ ...prev, issue_date: today, due_date: nextMonth.toISOString().split('T')[0] }));
-    }, []);
-
-    const handleGenerateInvoice = async (e) => {
-        e.preventDefault();
-        try {
-            const res = await fetch('/api/crm/invoices', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify(formData)
-            });
-            if (res.ok) {
-                setShowAddForm(false);
-                fetchData();
-            }
-        } catch (err) {
-            console.error(err);
-        }
+    const remove = async (inv) => {
+        if (!window.confirm(`Delete ${code('INV', inv.invoice_id)}?`)) return;
+        if (await run(() => api.del(`/api/crm/invoices/${inv.invoice_id}`), 'Invoice deleted')) invoices.reload();
     };
 
-    if (loading) return <div style={{ padding: '2rem', textAlign: 'center', color: 'var(--text-muted)' }}>LOADING INVOICES...</div>;
+    const visible = invoices.data.filter(i => filter === 'All' || effectiveStatus(i) === filter);
+    const count = (s) => invoices.data.filter(i => effectiveStatus(i) === s).length;
 
     return (
-        <div>
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1.5rem' }}>
-                <h3 style={{ fontFamily: 'var(--font-mono)', fontSize: '1.25rem', fontWeight: 800, textTransform: 'uppercase', color: 'var(--primary)' }}>Invoices</h3>
-                <button 
-                    onClick={() => setShowAddForm(!showAddForm)}
-                    style={{
-                        background: showAddForm ? 'transparent' : 'var(--primary)',
-                        color: showAddForm ? 'var(--text-muted)' : '#000',
-                        border: '1px solid var(--primary)',
-                        padding: '0.5rem 1rem', fontFamily: 'var(--font-mono)', fontWeight: 800, textTransform: 'uppercase', cursor: 'pointer'
-                    }}
-                >
-                    {showAddForm ? 'Cancel' : <><Plus className="w-4 h-4 inline-block mr-1" /> Generate Invoice</>}
-                </button>
-            </div>
-
-            {showAddForm && (
-                <form onSubmit={handleGenerateInvoice} style={{ background: 'var(--bg-card)', padding: '1.5rem', border: '1px solid var(--primary)', marginBottom: '2rem', boxShadow: 'var(--shadow-glow)' }}>
-                    <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem', marginBottom: '1rem' }}>
-                        <div>
-                            <label style={{ display: 'block', fontSize: '0.75rem', fontFamily: 'var(--font-mono)', textTransform: 'uppercase', color: 'var(--text-muted)', marginBottom: '0.25rem' }}>Client</label>
-                            <select required className="form-input" value={formData.client_id} onChange={e => setFormData({...formData, client_id: e.target.value})}>
-                                <option value="">-- Select Client --</option>
-                                {clients.map(c => <option key={c.client_id} value={c.client_id}>{c.company} ({c.name})</option>)}
-                            </select>
-                        </div>
-                        <div>
-                            <label style={{ display: 'block', fontSize: '0.75rem', fontFamily: 'var(--font-mono)', textTransform: 'uppercase', color: 'var(--text-muted)', marginBottom: '0.25rem' }}>Project (Optional)</label>
-                            <select className="form-input" value={formData.project_id} onChange={e => setFormData({...formData, project_id: e.target.value})}>
-                                <option value="">-- Select Project --</option>
-                                {projects.map(p => <option key={p.project_id} value={p.project_id}>{p.name}</option>)}
-                            </select>
-                        </div>
-                        <div>
-                            <label style={{ display: 'block', fontSize: '0.75rem', fontFamily: 'var(--font-mono)', textTransform: 'uppercase', color: 'var(--text-muted)', marginBottom: '0.25rem' }}>Amount ($)</label>
-                            <input required type="number" step="0.01" className="form-input" value={formData.amount} onChange={e => setFormData({...formData, amount: e.target.value})} />
-                        </div>
-                        <div style={{ display: 'flex', gap: '1rem' }}>
-                            <div style={{ flex: 1 }}>
-                                <label style={{ display: 'block', fontSize: '0.75rem', fontFamily: 'var(--font-mono)', textTransform: 'uppercase', color: 'var(--text-muted)', marginBottom: '0.25rem' }}>Issue Date</label>
-                                <input required type="date" className="form-input" value={formData.issue_date} onChange={e => setFormData({...formData, issue_date: e.target.value})} />
-                            </div>
-                            <div style={{ flex: 1 }}>
-                                <label style={{ display: 'block', fontSize: '0.75rem', fontFamily: 'var(--font-mono)', textTransform: 'uppercase', color: 'var(--text-muted)', marginBottom: '0.25rem' }}>Due Date</label>
-                                <input required type="date" className="form-input" value={formData.due_date} onChange={e => setFormData({...formData, due_date: e.target.value})} />
-                            </div>
-                        </div>
-                    </div>
-                    <button type="submit" style={{ background: 'var(--primary)', color: 'var(--primary-text)', border: 'none', padding: '0.5rem 1rem', fontFamily: 'var(--font-mono)', fontWeight: 800, textTransform: 'uppercase', cursor: 'pointer' }}>
-                        Generate Invoice
-                    </button>
-                </form>
+        <Panel
+            title="Invoices"
+            icon={Receipt}
+            flush
+            actions={<>
+                <div className="segmented">
+                    {FILTERS.map(f => <button key={f} className={filter === f ? 'active' : ''} onClick={() => setFilter(f)}>{f}{f !== 'All' ? ` (${count(f)})` : ''}</button>)}
+                </div>
+                <button className="btn btn-primary btn-sm" onClick={() => setCreating(true)}><Plus size={15} /> New invoice</button>
+            </>}
+        >
+            <ErrorNote message={invoices.error} onRetry={invoices.reload} />
+            {invoices.loading ? <Loading /> : visible.length === 0 ? (
+                <EmptyState icon={Receipt} title="No invoices" hint="Bill a client for one of their projects." />
+            ) : (
+                <div className="table-container">
+                    <table className="data-table">
+                        <thead><tr><th>Invoice</th><th>Client / project</th><th className="num">Amount</th><th>Issued</th><th>Due</th><th>Status</th><th /></tr></thead>
+                        <tbody>
+                            {visible.map(inv => {
+                                const status = effectiveStatus(inv);
+                                const open = !['Paid', 'Cancelled'].includes(inv.status);
+                                return (
+                                    <tr key={inv.invoice_id}>
+                                        <td className="mono strong">{code('INV', inv.invoice_id)}</td>
+                                        <td><div className="cell-main">{inv.client_company}</div><div className="cell-sub">{inv.project_name || '—'}</div></td>
+                                        <td className="num strong">{fmtMoney(inv.amount, 2)}</td>
+                                        <td className="text-sm muted nowrap">{fmtDate(inv.issue_date)}</td>
+                                        <td className={`text-sm nowrap ${status === 'Overdue' ? 'text-danger strong' : 'muted'}`}>{fmtDate(inv.due_date)}</td>
+                                        <td><StatusBadge status={status} /></td>
+                                        <td>
+                                            <div className="row-actions" style={{ gap: '0.35rem' }}>
+                                                {open && <button className="btn btn-success btn-sm" onClick={() => setStatus(inv, 'Paid')}><CheckCircle2 size={14} /> Mark paid</button>}
+                                                <select className="form-select sm" style={{ width: 44, paddingRight: 0, backgroundImage: 'none', textAlign: 'center' }} value="" onChange={e => e.target.value && setStatus(inv, e.target.value)} aria-label="Change status" title="Change status">
+                                                    <option value="">⋯</option>
+                                                    {['Pending', 'Overdue', 'Paid', 'Cancelled'].filter(s => s !== inv.status).map(s => <option key={s} value={s}>Mark {s}</option>)}
+                                                </select>
+                                                <button className="btn btn-ghost btn-icon btn-sm danger" onClick={() => remove(inv)} title="Delete invoice"><Trash2 size={14} /></button>
+                                            </div>
+                                        </td>
+                                    </tr>
+                                );
+                            })}
+                        </tbody>
+                    </table>
+                </div>
             )}
 
-            <div style={{ background: 'var(--bg-card)', border: '1px solid var(--border-color)' }}>
-                <table style={{ width: '100%', borderCollapse: 'collapse', textAlign: 'left' }}>
-                    <thead style={{ background: 'var(--bg-subtle)', fontFamily: 'var(--font-mono)', fontSize: '0.8rem', textTransform: 'uppercase', color: 'var(--text-muted)' }}>
-                        <tr>
-                            <th style={{ padding: '1rem', borderBottom: '1px solid var(--border-color)' }}>ID</th>
-                            <th style={{ padding: '1rem', borderBottom: '1px solid var(--border-color)' }}>Client</th>
-                            <th style={{ padding: '1rem', borderBottom: '1px solid var(--border-color)' }}>Amount</th>
-                            <th style={{ padding: '1rem', borderBottom: '1px solid var(--border-color)' }}>Dates</th>
-                            <th style={{ padding: '1rem', borderBottom: '1px solid var(--border-color)' }}>Status</th>
-                        </tr>
-                    </thead>
-                    <tbody>
-                        {invoices.length === 0 ? (
-                            <tr><td colSpan="5" style={{ padding: '2rem', textAlign: 'center', color: 'var(--text-muted)' }}>No invoices found.</td></tr>
-                        ) : invoices.map(inv => (
-                            <tr key={inv.invoice_id} className="hover:bg-white/5" style={{ transition: 'background 0.2s', borderBottom: '1px solid var(--border-color)' }}>
-                                <td style={{ padding: '1rem', fontFamily: 'var(--font-mono)' }}>INV-{inv.invoice_id.toString().padStart(4, '0')}</td>
-                                <td style={{ padding: '1rem' }}>
-                                    <div style={{ fontWeight: 700, color: 'var(--primary)' }}>{inv.client_company}</div>
-                                    <div style={{ fontSize: '0.8rem', color: 'var(--text-muted)' }}>{inv.project_name || 'General Services'}</div>
-                                </td>
-                                <td style={{ padding: '1rem', fontFamily: 'var(--font-mono)', fontSize: '1.1rem' }}>
-                                    ${parseFloat(inv.amount).toLocaleString()}
-                                </td>
-                                <td style={{ padding: '1rem', fontSize: '0.85rem', color: 'var(--text-muted)' }}>
-                                    <div>Issued: {inv.issue_date}</div>
-                                    <div style={{ color: new Date(inv.due_date) < new Date() && inv.status !== 'Paid' ? 'var(--danger)' : 'inherit' }}>
-                                        Due: {inv.due_date}
-                                    </div>
-                                </td>
-                                <td style={{ padding: '1rem' }}>
-                                    <span style={{ 
-                                        display: 'inline-flex', alignItems: 'center', gap: '0.3rem', padding: '0.25rem 0.5rem',
-                                        fontSize: '0.75rem', fontFamily: 'var(--font-mono)', textTransform: 'uppercase',
-                                        border: `1px solid ${inv.status === 'Paid' ? 'var(--success)' : 'var(--warning)'}`,
-                                        color: inv.status === 'Paid' ? 'var(--success)' : 'var(--warning)',
-                                        background: inv.status === 'Paid' ? 'rgba(0, 255, 128, 0.1)' : 'rgba(255, 170, 0, 0.1)'
-                                    }}>
-                                        {inv.status === 'Paid' ? <CheckCircle2 className="w-3 h-3" /> : <Circle className="w-3 h-3" />}
-                                        {inv.status}
-                                    </span>
-                                </td>
-                            </tr>
-                        ))}
-                    </tbody>
-                </table>
+            {creating && <InvoiceModal onClose={() => setCreating(false)} onSaved={invoices.reload} />}
+        </Panel>
+    );
+}
+
+function InvoiceModal({ onClose, onSaved }) {
+    const { data: lk } = useLookups();
+    const run = useAction();
+    const due = new Date();
+    due.setDate(due.getDate() + 30);
+    const [form, bind, , setForm] = useForm({ client_id: '', project_id: '', amount: '', issue_date: todayISO(), due_date: due.toLocaleDateString('en-CA') });
+
+    const clientProjects = lk.projects.filter(p => String(p.client_id) === String(form.client_id));
+
+    const submit = async () => {
+        if (await run(() => api.post('/api/crm/invoices', form), 'Invoice issued — client notified')) { onSaved(); onClose(); }
+    };
+
+    return (
+        <FormModal title="New invoice" subtitle="Only projects belonging to the chosen client can be billed" onClose={onClose} onSubmit={submit} submitLabel="Issue invoice">
+            <div className="form-grid">
+                <Field label="Client" required>
+                    <select className="form-select" value={form.client_id} onChange={e => setForm(f => ({ ...f, client_id: e.target.value, project_id: '' }))} required>
+                        <option value="">Select client…</option>
+                        {lk.clients.map(c => <option key={c.client_id} value={c.client_id}>{c.company}</option>)}
+                    </select>
+                </Field>
+                <Field label="Project" required hint={form.client_id && clientProjects.length === 0 ? 'This client has no projects yet.' : undefined}>
+                    <select className="form-select" value={form.project_id} onChange={bind('project_id')} required disabled={!form.client_id}>
+                        <option value="">{form.client_id ? 'Select project…' : 'Pick a client first'}</option>
+                        {clientProjects.map(p => <option key={p.project_id} value={p.project_id}>{p.name}</option>)}
+                    </select>
+                </Field>
+                <Field label="Amount ($)" required span><input type="number" min="0.01" step="0.01" className="form-input" value={form.amount} onChange={bind('amount')} required /></Field>
+                <Field label="Issue date" required><input type="date" className="form-input" value={form.issue_date} onChange={bind('issue_date')} required /></Field>
+                <Field label="Due date" required><input type="date" className="form-input" min={form.issue_date} value={form.due_date} onChange={bind('due_date')} required /></Field>
             </div>
-        </div>
+        </FormModal>
     );
 }

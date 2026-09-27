@@ -15,6 +15,7 @@ router.post('/login', async (req, res) => {
         const user = queryOne(db, `
             SELECT u.user_id, u.username, u.email, u.role_id, r.role_name, 
                    e.first_name, e.last_name, e.employee_id,
+                   (SELECT COUNT(*) FROM employees r WHERE r.manager_id = e.employee_id) AS report_count,
                    c.client_id, c.name as client_name, c.company as client_company
             FROM users u
             JOIN roles r ON u.role_id = r.role_id
@@ -36,6 +37,7 @@ router.post('/login', async (req, res) => {
                     role: user.role_name,
                     name: user.first_name ? `${user.first_name} ${user.last_name}` : (user.client_name ? user.client_name : user.username),
                     employee_id: user.employee_id || null,
+                    report_count: user.report_count || 0,
                     client_id: user.client_id || null,
                     company: user.client_company || null
                 },

@@ -1,109 +1,72 @@
 import React, { useState } from 'react';
-import { X, Layers, Key, Link2, Table } from 'lucide-react';
+import { Key, Link2 } from 'lucide-react';
+import { Modal, Loading, useFetch } from './ui';
 
-const ER_SCHEMA = [
-    { name: 'roles', pk: 'role_id', fields: ['role_name', 'description'], fk: [] },
-    { name: 'users', pk: 'user_id', fields: ['username', 'email', 'password_hash', 'is_active', 'created_at'], fk: ['role_id → roles.role_id'] },
-    { name: 'departments', pk: 'department_id', fields: ['name', 'description'], fk: ['head_id → employees.employee_id (NULL)'] },
-    { name: 'designations', pk: 'designation_id', fields: ['title', 'level'], fk: ['department_id → departments.department_id'] },
-    { name: 'employees', pk: 'employee_id', fields: ['first_name', 'last_name', 'dob', 'gender', 'phone', 'address', 'joining_date', 'salary', 'status'], fk: ['user_id → users.user_id (UNIQUE)', 'department_id → departments.department_id', 'designation_id → designations.designation_id', 'manager_id → employees.employee_id'] },
-    { name: 'projects', pk: 'project_id', fields: ['name', 'description', 'start_date', 'end_date', 'status'], fk: ['manager_id → employees.employee_id'] },
-    { name: 'tasks', pk: 'task_id', fields: ['title', 'description', 'priority', 'status', 'due_date'], fk: ['project_id → projects.project_id', 'assigned_to → employees.employee_id'] },
-    { name: 'clients', pk: 'client_id', fields: ['name', 'company', 'email', 'phone', 'address'], fk: [] },
-    { name: 'invoices', pk: 'invoice_id', fields: ['amount', 'issue_date', 'due_date', 'status'], fk: ['client_id → clients.client_id', 'project_id → projects.project_id'] },
-    { name: 'assets', pk: 'asset_id', fields: ['name', 'category', 'purchase_date', 'status'], fk: ['assigned_to → employees.employee_id'] },
-    { name: 'notifications', pk: 'notification_id', fields: ['title', 'message', 'is_read', 'created_at'], fk: ['user_id → users.user_id'] },
-    { name: 'attendance', pk: 'attendance_id', fields: ['date', 'check_in', 'check_out', 'status'], fk: ['employee_id → employees.employee_id'] },
-    { name: 'leave_requests', pk: 'leave_id', fields: ['leave_type', 'start_date', 'end_date', 'reason', 'status'], fk: ['employee_id → employees.employee_id', 'approved_by → employees.employee_id'] },
-    { name: 'payroll', pk: 'payroll_id', fields: ['month', 'year', 'basic_salary', 'bonus', 'deductions', 'net_salary', 'payment_date', 'status'], fk: ['employee_id → employees.employee_id'] },
-    { name: 'performance_reviews', pk: 'review_id', fields: ['review_date', 'rating', 'comments'], fk: ['employee_id → employees.employee_id', 'reviewer_id → employees.employee_id'] }
-];
-
+// Entity list generated live from PRAGMA table_info / foreign_key_list, so the diagram can
+// never drift from the actual schema. Selecting an entity highlights every table it
+// references and every table that references it.
 export default function ERDiagramModal({ isOpen, onClose }) {
-    const [selectedTable, setSelectedTable] = useState(null);
-
     if (!isOpen) return null;
+    return <ERDiagram onClose={onClose} />;
+}
+
+function ERDiagram({ onClose }) {
+    const { data: tables, loading } = useFetch('/api/tables', []);
+    const [selected, setSelected] = useState(null);
+
+    const sel = tables.find(t => t.name === selected);
+    const outgoing = new Set(sel ? sel.foreignKeys.map(fk => fk.table) : []);
+    const incoming = new Set(tables.filter(t => t.foreignKeys.some(fk => fk.table === selected)).map(t => t.name));
+    const fkCount = tables.reduce((s, t) => s + t.foreignKeys.length, 0);
 
     return (
-        <div className="modal-overlay" onClick={onClose}>
-            <div className="modal-card" style={{ maxWidth: '950px' }} onClick={e => e.stopPropagation()}>
-                
-                {/* Header */}
-                <div className="modal-header">
-                    <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
-                        <div className="brand-icon" style={{ background: 'var(--primary)', width: '36px', height: '36px' }}>
-                            <Layers className="w-5 h-5 text-white" />
-                        </div>
-                        <div>
-                            <h2 className="modal-title">Relational Entity-Relationship (ER) Schema</h2>
-                            <p style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>Normalized 3NF Database Entities, Primary Keys & Foreign Key Constraints</p>
-                        </div>
-                    </div>
-                    <button onClick={onClose} className="btn btn-ghost btn-sm">
-                        <X className="w-5 h-5" />
-                    </button>
-                </div>
-
-                {/* Body */}
-                <div className="modal-body">
-                    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(260px, 1fr))', gap: '1rem' }}>
-                        {ER_SCHEMA.map((entity) => (
-                            <div 
-                                key={entity.name}
-                                onClick={() => setSelectedTable(entity.name)}
-                                className="card"
-                                style={{
-                                    padding: '1rem',
-                                    cursor: 'pointer',
-                                    border: selectedTable === entity.name ? '2px solid var(--primary)' : '1px solid var(--border-color)',
-                                    backgroundColor: selectedTable === entity.name ? 'var(--primary-light)' : 'var(--bg-card)'
-                                }}
-                            >
-                                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '0.5rem' }}>
-                                    <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem' }}>
-                                        <Table className="w-4 h-4 text-indigo-600" />
-                                        <h3 style={{ fontSize: '0.9rem', fontWeight: 700, color: 'var(--secondary)' }}>{entity.name}</h3>
-                                    </div>
-                                    <span className="badge badge-slate">
-                                        {entity.fields.length + 1 + entity.fk.length} attrs
-                                    </span>
-                                </div>
-
-                                {/* Primary Key */}
-                                <div className="badge badge-warning" style={{ display: 'flex', alignItems: 'center', gap: '0.3rem', marginBottom: '0.5rem', width: '100%', padding: '0.35rem 0.5rem' }}>
-                                    <Key className="w-3.5 h-3.5" />
-                                    <span>PK: {entity.pk} (INTEGER)</span>
-                                </div>
-
-                                {/* Foreign Keys */}
-                                {entity.fk.length > 0 && (
-                                    <div style={{ display: 'flex', flexDirection: 'column', gap: '0.25rem', marginBottom: '0.5rem' }}>
-                                        {entity.fk.map((fkItem, idx) => (
-                                            <div key={idx} className="badge badge-info" style={{ display: 'flex', alignItems: 'center', gap: '0.3rem', width: '100%', padding: '0.3rem 0.5rem', fontSize: '0.675rem' }}>
-                                                <Link2 className="w-3 h-3" />
-                                                <span>FK: {fkItem}</span>
-                                            </div>
-                                        ))}
-                                    </div>
-                                )}
-
-                                {/* Attributes */}
-                                <div style={{ fontSize: '0.725rem', color: 'var(--text-muted)', fontFamily: 'var(--font-mono)' }} className="truncate">
-                                    Attributes: {entity.fields.join(', ')}
+        <Modal
+            title="Entity–relationship schema"
+            subtitle={`${tables.length} tables · ${fkCount} foreign keys · click an entity to trace its relationships`}
+            onClose={onClose}
+            size="xl"
+        >
+            <div className="modal-body">
+                {loading ? <Loading /> : (
+                    <div className="stack">
+                        {sel && (
+                            <div className="alert tone-primary text-sm">
+                                <div>
+                                    <strong className="mono">{sel.name}</strong> references {outgoing.size ? [...outgoing].map(t => <code key={t} style={{ marginRight: 4 }}>{t}</code>) : 'nothing'}
+                                    {' '}· referenced by {incoming.size ? [...incoming].map(t => <code key={t} style={{ marginRight: 4 }}>{t}</code>) : 'nothing'}
                                 </div>
                             </div>
-                        ))}
+                        )}
+                        <div className="er-grid">
+                            {tables.map(t => {
+                                const fkCols = Object.fromEntries(t.foreignKeys.map(fk => [fk.from, fk]));
+                                const cls = t.name === selected ? 'active' : (outgoing.has(t.name) || incoming.has(t.name)) ? 'related' : '';
+                                return (
+                                    <button key={t.name} className={`er-entity ${cls}`} onClick={() => setSelected(t.name === selected ? null : t.name)} style={{ opacity: selected && !cls ? 0.45 : 1 }}>
+                                        <div className="er-entity-head"><span>{t.name}</span><span className="light">{t.rowCount}</span></div>
+                                        <div className="er-entity-body">
+                                            {t.columns.map(c => (
+                                                <div key={c.name} className="row-between" style={{ gap: 6 }}>
+                                                    <span className="row" style={{ gap: 4, color: c.pk ? 'var(--text-main)' : undefined, fontWeight: c.pk ? 600 : 400 }}>
+                                                        {c.pk ? <Key size={10} className="text-warning" /> : fkCols[c.name] ? <Link2 size={10} style={{ color: 'var(--info)' }} /> : <span style={{ width: 10 }} />}
+                                                        {c.name}
+                                                    </span>
+                                                    <span className="light truncate" style={{ maxWidth: 110 }}>{fkCols[c.name] ? `→ ${fkCols[c.name].table}` : c.type.toLowerCase()}</span>
+                                                </div>
+                                            ))}
+                                        </div>
+                                    </button>
+                                );
+                            })}
+                        </div>
+                        <div className="row wrap text-xs muted" style={{ gap: '1rem' }}>
+                            <span className="row" style={{ gap: 4 }}><Key size={11} className="text-warning" /> primary key</span>
+                            <span className="row" style={{ gap: 4 }}><Link2 size={11} style={{ color: 'var(--info)' }} /> foreign key</span>
+                            <span>Row counts are live.</span>
+                        </div>
                     </div>
-                </div>
-
-                {/* Footer */}
-                <div className="modal-footer" style={{ justifyContent: 'center' }}>
-                    <p style={{ fontSize: '0.8rem', color: 'var(--text-muted)' }}>
-                        Relational Database Model • SQLite Engine • 15 Entity Tables
-                    </p>
-                </div>
-
+                )}
             </div>
-        </div>
+        </Modal>
     );
 }

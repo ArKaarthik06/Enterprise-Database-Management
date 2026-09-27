@@ -5,7 +5,6 @@ const AuthContext = createContext();
 export function AuthProvider({ children }) {
     const [user, setUser] = useState(null);
     const [token, setToken] = useState(null);
-    const [isAuthModalOpen, setIsAuthModalOpen] = useState(false);
     const [quickUsers, setQuickUsers] = useState([]);
 
     useEffect(() => {
@@ -25,11 +24,11 @@ export function AuthProvider({ children }) {
             .catch(err => console.error('Error loading quick users:', err));
     }, []);
 
-    const login = async (username, password) => {
-        const res = await fetch('/api/auth/login', {
+    const authenticate = async (url, body) => {
+        const res = await fetch(url, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ username, password })
+            body: JSON.stringify(body)
         });
         const data = await res.json();
         if (!res.ok) {
@@ -39,9 +38,13 @@ export function AuthProvider({ children }) {
         setToken(data.token);
         localStorage.setItem('dbms_auth_token', data.token);
         localStorage.setItem('dbms_auth_user', JSON.stringify(data.user));
-        setIsAuthModalOpen(false);
         return data;
     };
+
+    const login = (username, password) => authenticate('/api/auth/login', { username, password });
+
+    // Master-password login for the /admin terminal
+    const adminLogin = (password) => authenticate('/api/auth/admin-login', { password });
 
     const logout = () => {
         setUser(null);
@@ -55,10 +58,9 @@ export function AuthProvider({ children }) {
             user,
             token,
             isAuthenticated: !!user,
-            isAuthModalOpen,
-            setIsAuthModalOpen,
             quickUsers,
             login,
+            adminLogin,
             logout
         }}>
             {children}
